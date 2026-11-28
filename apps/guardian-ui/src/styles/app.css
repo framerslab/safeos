@@ -829,6 +829,18 @@ html:has(.app-shell) {
   animation: capture-loading 1.6s ease-in-out infinite;
 }
 
+/* The loading bar grows from the left along the foot of its frame: the
+   dashboard's drawn frame here, and the watch's frame while its camera starts
+   (watch.css). Both stylesheets load on every page. */
+@keyframes capture-loading {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .drawn-frame[data-loading='true']::after {
     display: none;

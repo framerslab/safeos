@@ -1,14 +1,21 @@
 {
   "schemaVersion": 1,
-  "commit": "297ac51efcb08613818c761aaf30aa317b453b85",
-  "run": "https://github.com/framerslab/safeos/actions/runs/46091755428",
-  "inputDigest": "688be766294010060b3a245d8e59ee2fc7af875950002523bc53d87ec5fe3e61",
+  "commit": "6bcbcc660d8529da802ea20f2610edfc75fcbc1c",
+  "run": "https://github.com/framerslab/safeos/actions/runs/46091938579",
+  "inputDigest": "a2afd7c48e125360b48173897e1494fae8d866b0336f8559f1ae44459a4a7a24",
   "inputs": {
-    ".github/workflows/pictures.yml#record-home-runs": "5f18cbe7c55be3c92fb9c5e617d1d532d6fd3e28",
+    ".github/workflows/pictures.yml#record-home-runs": "b4303e7e03543060e716f86842f3ec6c5545a3ad",
     "apps/guardian-ui/next.config.js": "99fd32331c349da96aea4e32dfb61f4a5c1f8fc5",
     "apps/guardian-ui/package-lock.json": "18247d9e41b40c6b55f5997429be331275f601a5",
     "apps/guardian-ui/package.json": "fb0876cce8813b5fc463c3b8c3de00767cdc302c",
     "apps/guardian-ui/postcss.config.js": "12a703d900da8159c30e75acbd2c4d87ae177f62",
+    "apps/guardian-ui/public/home/lost-found/photo-1-600.jpg": "25c1ea1e2f02090fc4bc604dde9d1bfaf7ea23a7",
+    "apps/guardian-ui/public/home/lost-found/photo-1.jpg": "8ef1d9c6bed7892b38b3da1be1936e4fb913bb57",
+    "apps/guardian-ui/public/home/lost-found/photo-2-600.jpg": "c50bb470e4c74e38b8ae54e8fb7ecf7d88aa494c",
+    "apps/guardian-ui/public/home/lost-found/photo-2.jpg": "e7403db2773a68a777b7822c9c0e83b32284f993",
+    "apps/guardian-ui/public/home/lost-found/photo-3-600.jpg": "77b76a4f09cda1437ac43f60c54941c7457aaab4",
+    "apps/guardian-ui/public/home/lost-found/photo-3.jpg": "ea80a42d05275d7b6399dfa56fcb0847a48a1d50",
+    "apps/guardian-ui/public/home/lost-found/photos.json": "3d3c5f76d781b6de557eabaa037d3c6115ba962f",
     "apps/guardian-ui/public/home/sample-clip.captions.vtt": "5bd5fd7e15d5e606348caa50183894542a4beaec",
     "apps/guardian-ui/public/home/sample-clip.descriptions.vtt": "5cc13ab76dd9d6e0e5d6533045e07fe6799ef2db",
     "apps/guardian-ui/public/home/sample-clip.json": "56ba674a51e44abb5829a58f03b8085284677db7",
@@ -19,13 +26,14 @@
     "apps/guardian-ui/public/sw.js": "979a0f8fefec264eb356d1609c885375e41bac98",
     "apps/guardian-ui/scripts/generate-offline-manifest.mjs": "9c049ef1790e9ec62cf1ea6052aa8784b4091f99",
     "apps/guardian-ui/scripts/home-capture-settings.json": "a8eb81bac091e53b173a4c1d729cd138b06fabe8",
-    "apps/guardian-ui/scripts/home-run-frames.mjs": "66c77919d79761179049124a461e72fab63b2d22",
-    "apps/guardian-ui/scripts/home-run-inputs.mjs": "fcb15ed4dff1fe03c8ed3bd894c681a228352118",
-    "apps/guardian-ui/scripts/home-run-list.mjs": "580a09a4a5154da056aa9ef4bc697ec0a241e8b8",
+    "apps/guardian-ui/scripts/home-run-frames.mjs": "247fd15b734126e6a3683a43d9add9844a5024a8",
+    "apps/guardian-ui/scripts/home-run-inputs.mjs": "8dd8cdc22d8148351dce9199079e53bd859280c5",
+    "apps/guardian-ui/scripts/home-run-list.mjs": "d212415b28a1fae6b518bab0bc5bad1687e0dd6a",
     "apps/guardian-ui/scripts/home-run-seed.mjs": "5238552335fb64610e0add934bc12e0eff324018",
-    "apps/guardian-ui/scripts/home-runs.mjs": "22f383ab0a0d280b1623db56908c7ef74302ab71",
+    "apps/guardian-ui/scripts/home-runs.mjs": "eec465dc31a11ba439e75efa001cb9ef0e673318",
     "apps/guardian-ui/scripts/home-wording.cjs": "cfa8293ad63b8ed13ff9fbcd8d1fb4aa5c70f764",
-    "apps/guardian-ui/scripts/lost-found-walk.mjs": "2bee934bca444cc76f2bc92e39ef473258f6ddc1",
+    "apps/guardian-ui/scripts/lost-found-verdict.mjs": "3070dc6fddb0f91fa13de3d8e7db2d9de482e610",
+    "apps/guardian-ui/scripts/lost-found-walk.mjs": "12ada2e19e3746ce5c379ef5e412fbb23767db54",
     "apps/guardian-ui/scripts/read-github-stars.mjs": "945b75c9628de295ca4d15c3b545c5900eff9127",
     "apps/guardian-ui/src/app/dashboard/layout.tsx": "38fc66c8f9c4706135abf72af9e1aca162564567",
     "apps/guardian-ui/src/app/dashboard/page.tsx": "acaf7048cba8c2bab8a3a676c7cf64dc732f0053",
@@ -33,6 +41,8 @@
     "apps/guardian-ui/src/app/history/layout.tsx": "87a0553b3d75d2f1efb02967863c62042e7f331a",
     "apps/guardian-ui/src/app/history/page.tsx": "4fe4d41ba1a28efcda86ae9ab62c242c0bdc1830",
     "apps/guardian-ui/src/app/layout.tsx": "501d62f880a95479d9ce21b37354b8688b370737",
+    "apps/guardian-ui/src/app/lost-found/layout.tsx": "6f7684bf9ce77d630571e7d50e256a00feddadf0",
+    "apps/guardian-ui/src/app/lost-found/page.tsx": "02ef9783d8dbf9f58957a876372637bcc8462bc0",
     "apps/guardian-ui/src/app/monitor/layout.tsx": "5beafd70b1186aded21bad1e2caab62cc6943ba2",
     "apps/guardian-ui/src/app/monitor/page.tsx": "fc19194ad00584186006462a5c4bd2c28df7ef5c",
     "apps/guardian-ui/src/app/settings/layout.tsx": "980fbce4ff2e77a935a397b702f351d4633dbf3f",
@@ -46,8 +56,10 @@
     "apps/guardian-ui/src/components/KeyboardShortcutsModal.tsx": "0fc99a3764f320916f0a7bd52bd8fda7ded911ea",
     "apps/guardian-ui/src/components/KeyboardShortcutsProvider.tsx": "0fd75fa64611f79e9fea9cbad5bee08f8a803cdd",
     "apps/guardian-ui/src/components/LostFoundMediaOverlay.tsx": "cf3126808aa3a7c6341bec3b06345f157f4c0bf3",
+    "apps/guardian-ui/src/components/LostFoundSetup.tsx": "49b4f3a392445ae17b78bfa073aadb4d4db54754",
     "apps/guardian-ui/src/components/Providers.tsx": "544d2dd1798442a030c3d60728bb769a028a4f57",
     "apps/guardian-ui/src/components/StatusBanner.tsx": "774062a5f7d2a5aab4b5c966773c19b08d98a34e",
+    "apps/guardian-ui/src/components/SubjectPreview.tsx": "98863fbaf1223fd06a82ee5ed08853c7b39a4c43",
     "apps/guardian-ui/src/components/ThemeProvider.tsx": "93895feb1b8dceae5e9caa76415522d250b953c3",
     "apps/guardian-ui/src/components/Toast.tsx": "1834250e36fe40962d8b1e481eb7c0c1c9a82aab",
     "apps/guardian-ui/src/components/alert-pictures/AlertPicturesGroup.tsx": "780ff6b336ba2aea4516e5c230ad4b0e6af38222",
@@ -66,7 +78,7 @@
     "apps/guardian-ui/src/components/dashboard/Drawn.tsx": "546f1395fd88afa918c5d52e5a2b63de9f529384",
     "apps/guardian-ui/src/components/dashboard/OtherTabDialog.tsx": "f38d6e2572c18a9398aa8cb36fc84409e0505f03",
     "apps/guardian-ui/src/components/dashboard/SinceYouLastLooked.tsx": "25cf44f4faf094fd263aafbb53f8dae11db1deeb",
-    "apps/guardian-ui/src/components/dashboard/WatchState.tsx": "085f21bd5bb80f385e7004abb0b886d59ec5531c",
+    "apps/guardian-ui/src/components/dashboard/WatchState.tsx": "1698106e1e1dacd30c8e6ca97ad9214a27ca1b11",
     "apps/guardian-ui/src/components/dashboard/WaysToWatch.tsx": "9dcb6727c58ff206f2415f49269ce8d72544cc69",
     "apps/guardian-ui/src/components/home/Brand.tsx": "a3b0831ca6fa5dde5c14bda7b9f2af78137650dc",
     "apps/guardian-ui/src/components/icons/WayGlyph.tsx": "4b703be6b273887c813285a37a3a27b6c9c7b4de",
@@ -130,6 +142,7 @@
     "apps/guardian-ui/src/lib/env.ts": "111cd82851756fde76fe1df959fc8234f56eda6d",
     "apps/guardian-ui/src/lib/github-stars.ts": "364da6d9a0f23bccc0d2f5461b5e8a1a0324916e",
     "apps/guardian-ui/src/lib/history-seen.ts": "ba6d273081a45d4873a1f897fe894cfd2e7cc566",
+    "apps/guardian-ui/src/lib/image-utils.ts": "4a4d073f386809e4a7e7ca29fa44755537d64eda",
     "apps/guardian-ui/src/lib/keyboard-shortcuts.ts": "d8a64e03e198da341eb1c46128dddb8238b00b1c",
     "apps/guardian-ui/src/lib/local-alert-engine.ts": "f8e696db736da3f6011806d906a0638f4c4a16bb",
     "apps/guardian-ui/src/lib/local-data-generation.ts": "0fbd19588fdf44ac8fdb5585223b74b9922f5745",
@@ -188,7 +201,7 @@
     "apps/guardian-ui/src/stores/settings-store.ts": "63e9ab1601a46dbcb69abaffe932529b8141872e",
     "apps/guardian-ui/src/stores/watch-settings.ts": "7580ad7794d48260f87fe6c1fdd19a182c1ccba5",
     "apps/guardian-ui/src/styles/alert-pictures.css": "2f6535620490f6ebdac969136cd2912a58570620",
-    "apps/guardian-ui/src/styles/app.css": "e71c689ce2e8c7fdccf35b6c940299ea0d2b27f8",
+    "apps/guardian-ui/src/styles/app.css": "949373d810b7999b9368823c051023ea3062e07b",
     "apps/guardian-ui/src/styles/design-system.css": "77935dde98649c0d82b2f28fdcdf7bfcdcdae42f",
     "apps/guardian-ui/src/styles/keys.css": "cd800f4f881efdc24de1725c03100eec3894d755",
     "apps/guardian-ui/src/styles/settings.css": "faf3537000841a03968865bf9f07ac796e347ccf",
@@ -278,10 +291,6 @@
     {
       "id": "alert",
       "reason": "Requires a garden recording with a kept movement picture and its close-up."
-    },
-    {
-      "id": "lost-found",
-      "reason": "Requires a recording of a saved pet’s fingerprint and its possible sighting."
     }
   ],
   "runs": [
@@ -298,8 +307,8 @@
         "Motion crosses its line and a movement alert arrives.",
         "The watch scrolls to Alerts and holds the movement alert and its picture in view."
       ],
-      "eventAt": 3.8691000938415527,
-      "posterAt": 0.2628288269042969,
+      "eventAt": 3.8696999549865723,
+      "posterAt": 0.3268918991088867,
       "visibleWords": [
         "Motion",
         "Quiet",
@@ -321,8 +330,8 @@
               "width": 984,
               "height": 984,
               "seconds": 9,
-              "bytes": 275938,
-              "sha256": "fe2d772b61b155cb4a88de5990eb2399e483e8aa4193e1149fc532365c1bbb67"
+              "bytes": 275636,
+              "sha256": "5cb632f4bfbfe26cd982dcafd307ee53129dfd56e8609e8ce983e4d3dd0fc1f1"
             },
             "poster": {
               "webp": {
@@ -331,8 +340,8 @@
                 "format": "webp",
                 "width": 984,
                 "height": 984,
-                "bytes": 50446,
-                "sha256": "58b60b18ec87cf411422c7e8ddad3dbe1876044e40cc039a7676911745e767ca"
+                "bytes": 48642,
+                "sha256": "43924828ad4389ebdf661e5261904eda6290bbf2b5afb1576d0ce204558f6513"
               },
               "avif": {
                 "path": "home/runs/watching-square-dark.avif",
@@ -340,8 +349,8 @@
                 "format": "avif",
                 "width": 984,
                 "height": 984,
-                "bytes": 34364,
-                "sha256": "b492919655a6774cf2e003ef9c8e207b02e41972d7c74c32d34d0c12822d61ce"
+                "bytes": 33629,
+                "sha256": "a85afdb62ac2d50912abf85a3b5980f57d80fc717a9b4e1e590cfbae23bfbb5d"
               }
             },
             "viewport": {
@@ -355,8 +364,8 @@
               "height": 328
             },
             "scale": 3,
-            "eventAt": 3.8691000938415527,
-            "posterAt": 0.2628288269042969,
+            "eventAt": 3.8696999549865723,
+            "posterAt": 0.3268918991088867,
             "words": [
               {
                 "word": "Motion",
@@ -400,23 +409,23 @@
               "sound": 8
             },
             "posterReading": {
-              "clipAt": 22.28092384338379
+              "clipAt": 22.311848163604736
             },
             "motionLine": 13,
-            "motionOverAt": 3.2627739906311035,
-            "pictureAt": 4.080471038818359,
+            "motionOverAt": 3.271385908126831,
+            "pictureAt": 4.015075922012329,
             "watchEvents": [
               {
                 "kind": "motion",
-                "at": "1795828357342",
-                "clipAt": 25.866863000000002
+                "at": "1795828533419",
+                "clipAt": 25.866907
               }
             ],
             "notifications": [
               {
                 "path": "service-worker",
                 "title": "Motion alert",
-                "body": "Medium, 1:12:37 AM."
+                "body": "Medium, 1:15:33 AM."
               }
             ]
           },
@@ -429,8 +438,8 @@
               "width": 984,
               "height": 984,
               "seconds": 9,
-              "bytes": 279004,
-              "sha256": "c66e735a3c98ae621f1e711fa8315623ab70cd19f8a3cf30b3be8dc25ca51ade"
+              "bytes": 273710,
+              "sha256": "fe29fb9151ca07bf9fa8a226df1ed8b34239efbb3f564164d93af486925b8f8e"
             },
             "poster": {
               "webp": {
@@ -439,8 +448,8 @@
                 "format": "webp",
                 "width": 984,
                 "height": 984,
-                "bytes": 49816,
-                "sha256": "eeda40befffcffc521200e787ca5ae49ba61959b9ad62801fa8902ee9bcf6d1a"
+                "bytes": 49820,
+                "sha256": "ee0d30235da963a7854f552086c66d0de5eed5ccd481bcbc8fc032e9ebc1ef6b"
               },
               "avif": {
                 "path": "home/runs/watching-square-light.avif",
@@ -448,8 +457,8 @@
                 "format": "avif",
                 "width": 984,
                 "height": 984,
-                "bytes": 34130,
-                "sha256": "53f9fd8a3300371ce4c510cdab679c6108d1ab2ab6c1fa411182188f0338d81c"
+                "bytes": 34142,
+                "sha256": "6bc2abd50f042f990fc7dc58356c948f1d34639e2346307f3f8180df5e46bc91"
               }
             },
             "viewport": {
@@ -463,8 +472,8 @@
               "height": 328
             },
             "scale": 3,
-            "eventAt": 3.8733999729156494,
-            "posterAt": 0.29335594177246094,
+            "eventAt": 3.8707997798919678,
+            "posterAt": 0.2634561061859131,
             "words": [
               {
                 "word": "Motion",
@@ -508,23 +517,23 @@
               "sound": 8
             },
             "posterReading": {
-              "clipAt": 22.28204894065857
+              "clipAt": 22.27880835533142
             },
             "motionLine": 13,
-            "motionOverAt": 3.329393148422241,
-            "pictureAt": 4.027572154998779,
+            "motionOverAt": 3.3292341232299805,
+            "pictureAt": 4.048923969268799,
             "watchEvents": [
               {
                 "kind": "motion",
-                "at": "1795828373783",
-                "clipAt": 25.866878
+                "at": "1795828550731",
+                "clipAt": 25.866897
               }
             ],
             "notifications": [
               {
                 "path": "service-worker",
                 "title": "Motion alert",
-                "body": "Medium, 1:12:53 AM."
+                "body": "Medium, 1:15:50 AM."
               }
             ]
           }
@@ -539,8 +548,8 @@
               "width": 1920,
               "height": 1200,
               "seconds": 9,
-              "bytes": 758216,
-              "sha256": "9f8f01d7a3aa051c08c8cf92bd76f0e557014d474449c6b40c5d097ee70cc1a5"
+              "bytes": 1165716,
+              "sha256": "43c6e1fa424477fac6251c71413fc303447bc330835f2c1707f78e8b6e295c71"
             },
             "poster": {
               "webp": {
@@ -573,8 +582,8 @@
               "height": 480
             },
             "scale": 2.5,
-            "eventAt": 3.8364999294281006,
-            "posterAt": 0.3237040042877197,
+            "eventAt": 3.857800006866455,
+            "posterAt": 0.28766322135925293,
             "words": [
               {
                 "word": "Motion",
@@ -615,26 +624,26 @@
             ],
             "meterPeaks": {
               "motion": 35,
-              "sound": 8
+              "sound": 7
             },
             "posterReading": {
-              "clipAt": 22.338018894195557
+              "clipAt": 22.303835153579712
             },
             "motionLine": 13,
-            "motionOverAt": 3.305798053741455,
-            "pictureAt": 4.1331870555877686,
+            "motionOverAt": 3.3177530765533447,
+            "pictureAt": 4.22924017906189,
             "watchEvents": [
               {
                 "kind": "motion",
-                "at": "1795828390180",
-                "clipAt": 25.86686
+                "at": "1795828568028",
+                "clipAt": 25.866934
               }
             ],
             "notifications": [
               {
                 "path": "service-worker",
                 "title": "Motion alert",
-                "body": "Medium, 1:13:10 AM."
+                "body": "Medium, 1:16:08 AM."
               }
             ]
           },
@@ -647,8 +656,8 @@
               "width": 1920,
               "height": 1200,
               "seconds": 9,
-              "bytes": 767107,
-              "sha256": "38a211f6f90986859ca0d79a1a76a8af5b5a62ef9059820d8e536d3116361818"
+              "bytes": 788466,
+              "sha256": "921f11c5dc7783e3fa4a6b880ce5a1da5497023017c9b1745f2e947286bb6cec"
             },
             "poster": {
               "webp": {
@@ -657,8 +666,8 @@
                 "format": "webp",
                 "width": 1920,
                 "height": 1200,
-                "bytes": 103244,
-                "sha256": "557a3080bcff8e1d32cd553bb45ec0d1201e48c81e4db95034c76c7760178c8c"
+                "bytes": 106676,
+                "sha256": "beb26bb5ab75292a7d372727ba78ff13145c6f3c9bc44e0f88f1901fcaa27923"
               },
               "avif": {
                 "path": "home/runs/watching-wide-light.avif",
@@ -666,8 +675,8 @@
                 "format": "avif",
                 "width": 1920,
                 "height": 1200,
-                "bytes": 67003,
-                "sha256": "4801310754f17ac2c7434d69c33eeb293c7ade22325d9e360a2d47b305d840f1"
+                "bytes": 72328,
+                "sha256": "5efa5633bb4c4ac4f94f0bd6ec3cd8c572026e07c9a5032fd723587564d12e2c"
               }
             },
             "viewport": {
@@ -681,8 +690,8 @@
               "height": 480
             },
             "scale": 2.5,
-            "eventAt": 3.835399866104126,
-            "posterAt": 0.7229547500610352,
+            "eventAt": 3.892699956893921,
+            "posterAt": 0.6705188751220703,
             "words": [
               {
                 "word": "Motion",
@@ -723,26 +732,26 @@
             ],
             "meterPeaks": {
               "motion": 35,
-              "sound": 8
+              "sound": 7
             },
             "posterReading": {
-              "clipAt": 22.734749794006348
+              "clipAt": 22.685616970062256
             },
             "motionLine": 13,
-            "motionOverAt": 3.312692880630493,
-            "pictureAt": 4.173699855804443,
+            "motionOverAt": 3.4233689308166504,
+            "pictureAt": 4.315694808959961,
             "watchEvents": [
               {
                 "kind": "motion",
-                "at": "1795828411773",
-                "clipAt": 25.86686
+                "at": "1795828587363",
+                "clipAt": 25.866902
               }
             ],
             "notifications": [
               {
                 "path": "service-worker",
                 "title": "Motion alert",
-                "body": "Medium, 1:13:31 AM."
+                "body": "Medium, 1:16:27 AM."
               }
             ]
           }
@@ -761,7 +770,7 @@
         "0–2 seconds. Since you last looked shows movement and sound alerts from the kitten clip.",
         "2–7 seconds. The movement alert opens its kept picture of the kitten with its face in view."
       ],
-      "eventAt": 2.001499891281128,
+      "eventAt": 2.0007998943328857,
       "posterAt": 0,
       "visibleWords": [
         "Since",
@@ -770,14 +779,14 @@
         "looked",
         "Movement",
         "at",
-        "1:15",
+        "1:18",
         "AM",
         "Motion",
         "and",
         "sound",
         "Sound",
         "at",
-        "1:14",
+        "1:17",
         "AM",
         "Motion",
         "and",
@@ -800,8 +809,8 @@
               "width": 984,
               "height": 984,
               "seconds": 7,
-              "bytes": 302848,
-              "sha256": "39e74855f1f7c486138d96f6eaaac8dd65a048d053f90ca0e82cfc706d7ea98f"
+              "bytes": 301069,
+              "sha256": "c5eafa887080fbb4f9273935d834491bbd32b049480b636631a35bf2bcb4dfa1"
             },
             "poster": {
               "webp": {
@@ -810,8 +819,8 @@
                 "format": "webp",
                 "width": 984,
                 "height": 984,
-                "bytes": 37728,
-                "sha256": "e8d515fbdd6b54a2d18a9ee97db223d8e5bc13cf156989812d30a61792b015ba"
+                "bytes": 37826,
+                "sha256": "db55a4501145ac96b248d3faa7bdebd333d6b2fa5a61a072d58728c0b6ef8779"
               },
               "avif": {
                 "path": "home/runs/dashboard-square-dark.avif",
@@ -819,8 +828,8 @@
                 "format": "avif",
                 "width": 984,
                 "height": 984,
-                "bytes": 28366,
-                "sha256": "31e595906ec775a49b5ab1a983aa71badd275e29350098f8b57050c826a60679"
+                "bytes": 28465,
+                "sha256": "2d0726fc258bcac9a1b35423ebfbe0bcb749c56430214b0ab5c28ae98a8db569"
               }
             },
             "viewport": {
@@ -834,7 +843,7 @@
               "height": 328
             },
             "scale": 3,
-            "eventAt": 2.001499891281128,
+            "eventAt": 2.0007998943328857,
             "posterAt": 0,
             "words": [
               {
@@ -892,7 +901,7 @@
                 "inkHeight": 13
               },
               {
-                "word": "1:15",
+                "word": "1:18",
                 "size": 18,
                 "x": 207.875,
                 "y": 81,
@@ -955,7 +964,7 @@
                 "inkHeight": 13
               },
               {
-                "word": "1:14",
+                "word": "1:17",
                 "size": 18,
                 "x": 172.77084350585938,
                 "y": 150,
@@ -1054,29 +1063,29 @@
                 "inkHeight": 18
               }
             ],
-            "pictureAt": 2.604099750518799,
+            "pictureAt": 2.5992000102996826,
             "watchEvents": [
               {
                 "kind": "sound",
-                "at": "1795828495014",
-                "clipAt": 6.266937
+                "at": "1795828672949",
+                "clipAt": 6.267009
               },
               {
                 "kind": "motion",
-                "at": "1795828511012",
-                "clipAt": 22.266751
+                "at": "1795828688946",
+                "clipAt": 22.266978
               }
             ],
             "notifications": [
               {
                 "path": "service-worker",
                 "title": "Sound alert",
-                "body": "Medium, 1:14:55 AM."
+                "body": "Medium, 1:17:52 AM."
               },
               {
                 "path": "service-worker",
                 "title": "Motion alert",
-                "body": "Low, 1:15:11 AM."
+                "body": "Low, 1:18:08 AM."
               }
             ]
           },
@@ -1089,8 +1098,8 @@
               "width": 984,
               "height": 984,
               "seconds": 7,
-              "bytes": 281723,
-              "sha256": "65e68df191c11127f6885f1f27608cdfb93c5b6f8fbabd7d150b4e9dd96f98a5"
+              "bytes": 299079,
+              "sha256": "a0c6b61979729bebb4de44d620ba10379542806599b458c6e3e1764c07d7a28f"
             },
             "poster": {
               "webp": {
@@ -1099,8 +1108,8 @@
                 "format": "webp",
                 "width": 984,
                 "height": 984,
-                "bytes": 37908,
-                "sha256": "2af673aa57e8754ece394f76dfa3643074f8e9ab00efabf1a75ba630eab095cb"
+                "bytes": 38178,
+                "sha256": "c526b2fbc2a11298cf08bf53780e88744460b2535373530b959b77e173d3e113"
               },
               "avif": {
                 "path": "home/runs/dashboard-square-light.avif",
@@ -1108,8 +1117,8 @@
                 "format": "avif",
                 "width": 984,
                 "height": 984,
-                "bytes": 29267,
-                "sha256": "b3458fa9cfd484fcc15d256b375f968548c1c4e36e926d936243c0f4bc4acfc2"
+                "bytes": 29515,
+                "sha256": "5d53b6b2bea62c5378f9537cd238554879cb54535c6154e4e066db798761eb11"
               }
             },
             "viewport": {
@@ -1123,7 +1132,7 @@
               "height": 328
             },
             "scale": 3,
-            "eventAt": 2.0006000995635986,
+            "eventAt": 2.0007996559143066,
             "posterAt": 0,
             "words": [
               {
@@ -1181,7 +1190,7 @@
                 "inkHeight": 13
               },
               {
-                "word": "1:15",
+                "word": "1:18",
                 "size": 18,
                 "x": 207.875,
                 "y": 81,
@@ -1244,7 +1253,7 @@
                 "inkHeight": 13
               },
               {
-                "word": "1:15",
+                "word": "1:18",
                 "size": 18,
                 "x": 172.77084350585938,
                 "y": 150,
@@ -1343,29 +1352,29 @@
                 "inkHeight": 18
               }
             ],
-            "pictureAt": 2.2829270362854004,
+            "pictureAt": 2.523899793624878,
             "watchEvents": [
               {
                 "kind": "sound",
-                "at": "1795828528089",
-                "clipAt": 6.266913
+                "at": "1795828706034",
+                "clipAt": 6.266994
               },
               {
                 "kind": "motion",
-                "at": "1795828544087",
-                "clipAt": 22.26677
+                "at": "1795828722031",
+                "clipAt": 22.266846
               }
             ],
             "notifications": [
               {
                 "path": "service-worker",
                 "title": "Sound alert",
-                "body": "Medium, 1:15:28 AM."
+                "body": "Medium, 1:18:26 AM."
               },
               {
                 "path": "service-worker",
                 "title": "Motion alert",
-                "body": "Low, 1:15:44 AM."
+                "body": "Low, 1:18:42 AM."
               }
             ]
           }
@@ -1380,8 +1389,8 @@
               "width": 1920,
               "height": 1200,
               "seconds": 7,
-              "bytes": 428766,
-              "sha256": "4e59a8449a8d969e7487c22e79390748450d7a763f5de30dab7a25e5af55b759"
+              "bytes": 439388,
+              "sha256": "2aadad81f5828036b60b2a7b7db8c5aafc11f4c79fa76d987dd7af500d732574"
             },
             "poster": {
               "webp": {
@@ -1390,8 +1399,8 @@
                 "format": "webp",
                 "width": 1920,
                 "height": 1200,
-                "bytes": 44068,
-                "sha256": "0a5d4adfb14327513c5a2cf3f5c8ec664138e184a6fd23d2e6086d101518b32c"
+                "bytes": 44050,
+                "sha256": "789582441fc54874a085b003e1ce854bfba3367d23b0643f62b4cae880dd2bd3"
               },
               "avif": {
                 "path": "home/runs/dashboard-wide-dark.avif",
@@ -1399,8 +1408,8 @@
                 "format": "avif",
                 "width": 1920,
                 "height": 1200,
-                "bytes": 49714,
-                "sha256": "0c368611dc3844168047d59903508c53869d672b0423662602b064a4cf91932c"
+                "bytes": 49669,
+                "sha256": "05c81bbc80575b4c58bf3d600bc1530b0173792c25e8bdf4ba2564c255823ad0"
               }
             },
             "viewport": {
@@ -1414,7 +1423,7 @@
               "height": 400
             },
             "scale": 3,
-            "eventAt": 2.0011000633239746,
+            "eventAt": 2.0016000270843506,
             "posterAt": 0,
             "words": [
               {
@@ -1472,7 +1481,7 @@
                 "inkHeight": 13
               },
               {
-                "word": "1:16",
+                "word": "1:19",
                 "size": 18,
                 "x": 207.875,
                 "y": 130,
@@ -1535,7 +1544,7 @@
                 "inkHeight": 13
               },
               {
-                "word": "1:16",
+                "word": "1:18",
                 "size": 18,
                 "x": 172.77084350585938,
                 "y": 199,
@@ -1634,29 +1643,29 @@
                 "inkHeight": 18
               }
             ],
-            "pictureAt": 2.334414005279541,
+            "pictureAt": 2.570200204849243,
             "watchEvents": [
               {
                 "kind": "sound",
-                "at": "1795828560868",
-                "clipAt": 6.266935
+                "at": "1795828739146",
+                "clipAt": 6.267006
               },
               {
                 "kind": "motion",
-                "at": "1795828576866",
-                "clipAt": 22.266771
+                "at": "1795828755143",
+                "clipAt": 22.266781
               }
             ],
             "notifications": [
               {
                 "path": "service-worker",
                 "title": "Sound alert",
-                "body": "Medium, 1:16:00 AM."
+                "body": "Medium, 1:18:59 AM."
               },
               {
                 "path": "service-worker",
                 "title": "Motion alert",
-                "body": "Low, 1:16:16 AM."
+                "body": "Low, 1:19:15 AM."
               }
             ]
           },
@@ -1669,8 +1678,8 @@
               "width": 1920,
               "height": 1200,
               "seconds": 7,
-              "bytes": 455430,
-              "sha256": "b419de433909d8d67916693ff3a84ed7dd03de38e9a936a402c36b554624fb5f"
+              "bytes": 455348,
+              "sha256": "f2eeac7483828477cabb324eedf42fbcbe07bf9e5da0771b797148176f4b46ef"
             },
             "poster": {
               "webp": {
@@ -1679,8 +1688,8 @@
                 "format": "webp",
                 "width": 1920,
                 "height": 1200,
-                "bytes": 44572,
-                "sha256": "50daae8d56d9ee9b74554b37f6d2504c83edfe0e3624955bd3066e4fe7845544"
+                "bytes": 44560,
+                "sha256": "40387678e2b2b84bc3239122e2598f10611b7decf6794a9663a88533b7f04868"
               },
               "avif": {
                 "path": "home/runs/dashboard-wide-light.avif",
@@ -1688,8 +1697,8 @@
                 "format": "avif",
                 "width": 1920,
                 "height": 1200,
-                "bytes": 52250,
-                "sha256": "11af5c4bd5ac2987bfdba9e4504636bf4bbceaf59247b2eac9959b242b2d018a"
+                "bytes": 52241,
+                "sha256": "aa35979c8b5217b1cd4e8e79cea0653fa0170657157a48476870782823329154"
               }
             },
             "viewport": {
@@ -1703,7 +1712,7 @@
               "height": 400
             },
             "scale": 3,
-            "eventAt": 2.0005998611450195,
+            "eventAt": 2.0015997886657715,
             "posterAt": 0,
             "words": [
               {
@@ -1761,7 +1770,7 @@
                 "inkHeight": 13
               },
               {
-                "word": "1:16",
+                "word": "1:19",
                 "size": 18,
                 "x": 207.875,
                 "y": 130,
@@ -1824,7 +1833,7 @@
                 "inkHeight": 13
               },
               {
-                "word": "1:16",
+                "word": "1:19",
                 "size": 18,
                 "x": 172.77084350585938,
                 "y": 199,
@@ -1923,29 +1932,1440 @@
                 "inkHeight": 18
               }
             ],
-            "pictureAt": 2.5515739917755127,
+            "pictureAt": 2.3213179111480713,
             "watchEvents": [
               {
                 "kind": "sound",
-                "at": "1795828593667",
-                "clipAt": 6.266914
+                "at": "1795828772290",
+                "clipAt": 6.266982
               },
               {
                 "kind": "motion",
-                "at": "1795828609664",
-                "clipAt": 22.266745
+                "at": "1795828788287",
+                "clipAt": 22.266811
               }
             ],
             "notifications": [
               {
                 "path": "service-worker",
                 "title": "Sound alert",
-                "body": "Medium, 1:16:33 AM."
+                "body": "Medium, 1:19:32 AM."
               },
               {
                 "path": "service-worker",
                 "title": "Motion alert",
-                "body": "Low, 1:16:49 AM."
+                "body": "Low, 1:19:48 AM."
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "lost-found",
+      "key": "Lost and Found",
+      "route": "/monitor/",
+      "state": "sighting",
+      "clip": "home/sample-clip.mp4",
+      "photos": [
+        "home/lost-found/photo-1.jpg"
+      ],
+      "enrolled": [
+        {
+          "file": "home/lost-found/photo-1.jpg",
+          "sha256": "f41e31cd553c30673e3488b16c675fb4bd326d7cc20662deb2b435d0c74e98fc"
+        }
+      ],
+      "seconds": 9,
+      "description": "The kitten clip compared with a photo from another day, and a possible sighting.",
+      "longDescription": [
+        "0–2 seconds. Lost and Found holds Toffee’s one saved photo, a kitten lying on a beige carpet.",
+        "2–5 seconds. The watch compares the kitten clip, on a grey carpet, with that photo twice a second.",
+        "5–9 seconds. A possible sighting asks \"Could this be Toffee?\" with the camera’s picture beside the saved photo, to check by eye."
+      ],
+      "eventAt": 3.299999952316284,
+      "posterAt": 5.272052764892578,
+      "visibleWords": [
+        "Close-up",
+        "Toffee’s",
+        "saved",
+        "photo",
+        "Could",
+        "this",
+        "be",
+        "Toffee?",
+        "1:20:27",
+        "AM",
+        "Colours",
+        "and",
+        "shape",
+        "like",
+        "Toffee’s",
+        "photos.",
+        "Compare",
+        "the",
+        "two",
+        "pictures.",
+        "It",
+        "can",
+        "be",
+        "another",
+        "animal",
+        "that",
+        "looks",
+        "alike."
+      ],
+      "variants": {
+        "square": {
+          "dark": {
+            "video": {
+              "path": "home/runs/lost-found-square-dark.mp4",
+              "kind": "video",
+              "format": "mp4",
+              "codec": "h264",
+              "width": 984,
+              "height": 984,
+              "seconds": 9,
+              "bytes": 364156,
+              "sha256": "599a87a0695b276dbcdf73b9303b636f59f2652d816777fad9c7fedec3ebc367"
+            },
+            "poster": {
+              "webp": {
+                "path": "home/runs/lost-found-square-dark.webp",
+                "kind": "poster",
+                "format": "webp",
+                "width": 984,
+                "height": 984,
+                "bytes": 55338,
+                "sha256": "452e85db4746d7ae09aabfd2cc1b4bc6cd9e94968560450c990b4dbbc900ca94"
+              },
+              "avif": {
+                "path": "home/runs/lost-found-square-dark.avif",
+                "kind": "poster",
+                "format": "avif",
+                "width": 984,
+                "height": 984,
+                "bytes": 45145,
+                "sha256": "cf810a80c429cf6542ac5ae99525e02c21e5393a4fa6f3bbee49e6b05a630443"
+              }
+            },
+            "viewport": {
+              "width": 328,
+              "height": 844
+            },
+            "crop": {
+              "x": 0,
+              "y": 60,
+              "width": 328,
+              "height": 328
+            },
+            "scale": 3,
+            "eventAt": 3.299999952316284,
+            "posterAt": 5.272052764892578,
+            "words": [
+              {
+                "word": "Close-up",
+                "size": 16,
+                "x": 41,
+                "y": 95.33334350585938,
+                "width": 69.546875,
+                "height": 19.666656494140625,
+                "inkHeight": 15
+              },
+              {
+                "word": "Toffee’s",
+                "size": 16,
+                "x": 161,
+                "y": 95.33334350585938,
+                "width": 59.078125,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "saved",
+                "size": 16,
+                "x": 224.578125,
+                "y": 95.33334350585938,
+                "width": 45,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "photo",
+                "size": 16,
+                "x": 161,
+                "y": 117.72917175292969,
+                "width": 43.52604675292969,
+                "height": 19.666671752929688,
+                "inkHeight": 15
+              },
+              {
+                "word": "Could",
+                "size": 18,
+                "x": 41,
+                "y": 148.45834350585938,
+                "width": 51.1875,
+                "height": 21.666656494140625,
+                "inkHeight": 13
+              },
+              {
+                "word": "this",
+                "size": 18,
+                "x": 96.71875,
+                "y": 148.45834350585938,
+                "width": 32.01042175292969,
+                "height": 21.666656494140625,
+                "inkHeight": 14
+              },
+              {
+                "word": "be",
+                "size": 18,
+                "x": 133.2604217529297,
+                "y": 148.45834350585938,
+                "width": 21.880203247070312,
+                "height": 21.666656494140625,
+                "inkHeight": 13
+              },
+              {
+                "word": "Toffee?",
+                "size": 18,
+                "x": 159.671875,
+                "y": 148.45834350585938,
+                "width": 65.33854675292969,
+                "height": 21.666656494140625,
+                "inkHeight": 14
+              },
+              {
+                "word": "1:20:27",
+                "size": 16,
+                "x": 41,
+                "y": 175.98959350585938,
+                "width": 54.390625,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "AM",
+                "size": 16,
+                "x": 99.890625,
+                "y": 175.98959350585938,
+                "width": 25.494796752929688,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "Colours",
+                "size": 16,
+                "x": 41,
+                "y": 201.98959350585938,
+                "width": 58.68229675292969,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "and",
+                "size": 16,
+                "x": 104.17708587646484,
+                "y": 201.98959350585938,
+                "width": 28.239585876464844,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "shape",
+                "size": 16,
+                "x": 136.91146850585938,
+                "y": 201.98959350585938,
+                "width": 46.02082824707031,
+                "height": 19.666656494140625,
+                "inkHeight": 15
+              },
+              {
+                "word": "like",
+                "size": 16,
+                "x": 187.42709350585938,
+                "y": 201.98959350585938,
+                "width": 25.505203247070312,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "Toffee’s",
+                "size": 16,
+                "x": 217.42709350585938,
+                "y": 201.98959350585938,
+                "width": 59.083343505859375,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "photos.",
+                "size": 16,
+                "x": 41,
+                "y": 225.98959350585938,
+                "width": 56.578125,
+                "height": 19.666656494140625,
+                "inkHeight": 15
+              },
+              {
+                "word": "Compare",
+                "size": 16,
+                "x": 41,
+                "y": 251.98959350585938,
+                "width": 69.32292175292969,
+                "height": 19.666656494140625,
+                "inkHeight": 15
+              },
+              {
+                "word": "the",
+                "size": 16,
+                "x": 114.81771087646484,
+                "y": 251.98959350585938,
+                "width": 24.026039123535156,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "two",
+                "size": 16,
+                "x": 143.34375,
+                "y": 251.98959350585938,
+                "width": 27.869796752929688,
+                "height": 19.666656494140625,
+                "inkHeight": 11
+              },
+              {
+                "word": "pictures.",
+                "size": 16,
+                "x": 175.70834350585938,
+                "y": 251.98959350585938,
+                "width": 65.65103149414062,
+                "height": 19.666656494140625,
+                "inkHeight": 15
+              },
+              {
+                "word": "It",
+                "size": 16,
+                "x": 245.859375,
+                "y": 251.98959350585938,
+                "width": 9.765625,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "can",
+                "size": 16,
+                "x": 41,
+                "y": 275.9895935058594,
+                "width": 27.734375,
+                "height": 19.666656494140625,
+                "inkHeight": 9
+              },
+              {
+                "word": "be",
+                "size": 16,
+                "x": 73.234375,
+                "y": 275.9895935058594,
+                "width": 19.125,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "another",
+                "size": 16,
+                "x": 96.859375,
+                "y": 275.9895935058594,
+                "width": 58.078125,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "animal",
+                "size": 16,
+                "x": 159.4375,
+                "y": 275.9895935058594,
+                "width": 49.1875,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "that",
+                "size": 16,
+                "x": 213.125,
+                "y": 275.9895935058594,
+                "width": 28.916671752929688,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "looks",
+                "size": 16,
+                "x": 246.53646850585938,
+                "y": 275.9895935058594,
+                "width": 40.291656494140625,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "alike.",
+                "size": 16,
+                "x": 41,
+                "y": 299.9895935058594,
+                "width": 39.09375,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              }
+            ],
+            "pictureAt": 5.272052764892578,
+            "watchEvents": [
+              {
+                "kind": "sighting",
+                "at": "1795828827290",
+                "clipAt": 0.86708
+              }
+            ],
+            "notifications": [
+              {
+                "path": "service-worker",
+                "title": "Could this be Toffee?",
+                "body": "Colours and shape like Toffee’s photos, 1:20:27 AM."
+              }
+            ]
+          },
+          "light": {
+            "video": {
+              "path": "home/runs/lost-found-square-light.mp4",
+              "kind": "video",
+              "format": "mp4",
+              "codec": "h264",
+              "width": 984,
+              "height": 984,
+              "seconds": 9,
+              "bytes": 362833,
+              "sha256": "e89422e70e2c3aa0ad2fcffe37ffb45c5a08077d4cf018e33e836cb9e5ab62a9"
+            },
+            "poster": {
+              "webp": {
+                "path": "home/runs/lost-found-square-light.webp",
+                "kind": "poster",
+                "format": "webp",
+                "width": 984,
+                "height": 984,
+                "bytes": 57608,
+                "sha256": "e9bc616be3ceb9db81e560ce25f242e8531db2dc870f778129484529163aa38c"
+              },
+              "avif": {
+                "path": "home/runs/lost-found-square-light.avif",
+                "kind": "poster",
+                "format": "avif",
+                "width": 984,
+                "height": 984,
+                "bytes": 49673,
+                "sha256": "12d9040d64d26af11db91775f7c6e5cc9727a84428189d88b9dd52f94101b8a4"
+              }
+            },
+            "viewport": {
+              "width": 328,
+              "height": 844
+            },
+            "crop": {
+              "x": 0,
+              "y": 60,
+              "width": 328,
+              "height": 328
+            },
+            "scale": 3,
+            "eventAt": 3.317000150680542,
+            "posterAt": 5.287630796432495,
+            "words": [
+              {
+                "word": "Close-up",
+                "size": 16,
+                "x": 41,
+                "y": 95.33334350585938,
+                "width": 69.546875,
+                "height": 19.666656494140625,
+                "inkHeight": 15
+              },
+              {
+                "word": "Toffee’s",
+                "size": 16,
+                "x": 161,
+                "y": 95.33334350585938,
+                "width": 59.078125,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "saved",
+                "size": 16,
+                "x": 224.578125,
+                "y": 95.33334350585938,
+                "width": 45,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "photo",
+                "size": 16,
+                "x": 161,
+                "y": 117.72917175292969,
+                "width": 43.52604675292969,
+                "height": 19.666671752929688,
+                "inkHeight": 15
+              },
+              {
+                "word": "Could",
+                "size": 18,
+                "x": 41,
+                "y": 148.45834350585938,
+                "width": 51.1875,
+                "height": 21.666656494140625,
+                "inkHeight": 13
+              },
+              {
+                "word": "this",
+                "size": 18,
+                "x": 96.71875,
+                "y": 148.45834350585938,
+                "width": 32.01042175292969,
+                "height": 21.666656494140625,
+                "inkHeight": 14
+              },
+              {
+                "word": "be",
+                "size": 18,
+                "x": 133.2604217529297,
+                "y": 148.45834350585938,
+                "width": 21.880203247070312,
+                "height": 21.666656494140625,
+                "inkHeight": 13
+              },
+              {
+                "word": "Toffee?",
+                "size": 18,
+                "x": 159.671875,
+                "y": 148.45834350585938,
+                "width": 65.33854675292969,
+                "height": 21.666656494140625,
+                "inkHeight": 14
+              },
+              {
+                "word": "1:20:42",
+                "size": 16,
+                "x": 41,
+                "y": 175.98959350585938,
+                "width": 55.671875,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "AM",
+                "size": 16,
+                "x": 101.171875,
+                "y": 175.98959350585938,
+                "width": 25.494796752929688,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "Colours",
+                "size": 16,
+                "x": 41,
+                "y": 201.98959350585938,
+                "width": 58.68229675292969,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "and",
+                "size": 16,
+                "x": 104.17708587646484,
+                "y": 201.98959350585938,
+                "width": 28.239585876464844,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "shape",
+                "size": 16,
+                "x": 136.91146850585938,
+                "y": 201.98959350585938,
+                "width": 46.02082824707031,
+                "height": 19.666656494140625,
+                "inkHeight": 15
+              },
+              {
+                "word": "like",
+                "size": 16,
+                "x": 187.42709350585938,
+                "y": 201.98959350585938,
+                "width": 25.505203247070312,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "Toffee’s",
+                "size": 16,
+                "x": 217.42709350585938,
+                "y": 201.98959350585938,
+                "width": 59.083343505859375,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "photos.",
+                "size": 16,
+                "x": 41,
+                "y": 225.98959350585938,
+                "width": 56.578125,
+                "height": 19.666656494140625,
+                "inkHeight": 15
+              },
+              {
+                "word": "Compare",
+                "size": 16,
+                "x": 41,
+                "y": 251.98959350585938,
+                "width": 69.32292175292969,
+                "height": 19.666656494140625,
+                "inkHeight": 15
+              },
+              {
+                "word": "the",
+                "size": 16,
+                "x": 114.81771087646484,
+                "y": 251.98959350585938,
+                "width": 24.026039123535156,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "two",
+                "size": 16,
+                "x": 143.34375,
+                "y": 251.98959350585938,
+                "width": 27.869796752929688,
+                "height": 19.666656494140625,
+                "inkHeight": 11
+              },
+              {
+                "word": "pictures.",
+                "size": 16,
+                "x": 175.70834350585938,
+                "y": 251.98959350585938,
+                "width": 65.65103149414062,
+                "height": 19.666656494140625,
+                "inkHeight": 15
+              },
+              {
+                "word": "It",
+                "size": 16,
+                "x": 245.859375,
+                "y": 251.98959350585938,
+                "width": 9.765625,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "can",
+                "size": 16,
+                "x": 41,
+                "y": 275.9895935058594,
+                "width": 27.734375,
+                "height": 19.666656494140625,
+                "inkHeight": 9
+              },
+              {
+                "word": "be",
+                "size": 16,
+                "x": 73.234375,
+                "y": 275.9895935058594,
+                "width": 19.125,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "another",
+                "size": 16,
+                "x": 96.859375,
+                "y": 275.9895935058594,
+                "width": 58.078125,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "animal",
+                "size": 16,
+                "x": 159.4375,
+                "y": 275.9895935058594,
+                "width": 49.1875,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "that",
+                "size": 16,
+                "x": 213.125,
+                "y": 275.9895935058594,
+                "width": 28.916671752929688,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "looks",
+                "size": 16,
+                "x": 246.53646850585938,
+                "y": 275.9895935058594,
+                "width": 40.291656494140625,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "alike.",
+                "size": 16,
+                "x": 41,
+                "y": 299.9895935058594,
+                "width": 39.09375,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              }
+            ],
+            "pictureAt": 5.287630796432495,
+            "watchEvents": [
+              {
+                "kind": "sighting",
+                "at": "1795828842333",
+                "clipAt": 0.933676
+              }
+            ],
+            "notifications": [
+              {
+                "path": "service-worker",
+                "title": "Could this be Toffee?",
+                "body": "Colours and shape like Toffee’s photos, 1:20:42 AM."
+              }
+            ]
+          }
+        },
+        "wide": {
+          "dark": {
+            "video": {
+              "path": "home/runs/lost-found-wide-dark.mp4",
+              "kind": "video",
+              "format": "mp4",
+              "codec": "h264",
+              "width": 1920,
+              "height": 1200,
+              "seconds": 9,
+              "bytes": 762456,
+              "sha256": "82e88d24679cc27474dad8c60a866ea9e5a6e49d58a844a7a21daa1c473b3ba7"
+            },
+            "poster": {
+              "webp": {
+                "path": "home/runs/lost-found-wide-dark.webp",
+                "kind": "poster",
+                "format": "webp",
+                "width": 1920,
+                "height": 1200,
+                "bytes": 110934,
+                "sha256": "5bca6ea45223643aedf9e9f93d82da67ace4b4161858618cb9867b6b2a5cdfb2"
+              },
+              "avif": {
+                "path": "home/runs/lost-found-wide-dark.avif",
+                "kind": "poster",
+                "format": "avif",
+                "width": 1920,
+                "height": 1200,
+                "bytes": 108246,
+                "sha256": "e1e69033885c40ddace04da00d68126d1b9b628d787893a3c3b58ed4302eb960"
+              }
+            },
+            "viewport": {
+              "width": 640,
+              "height": 640
+            },
+            "crop": {
+              "x": 0,
+              "y": 60,
+              "width": 640,
+              "height": 400
+            },
+            "scale": 3,
+            "eventAt": 3.46209979057312,
+            "posterAt": 5.785799741744995,
+            "words": [
+              {
+                "word": "just",
+                "size": 16,
+                "x": 544.6302490234375,
+                "y": 0,
+                "width": 27.015625,
+                "height": 19.666671752929688,
+                "inkHeight": 15
+              },
+              {
+                "word": "now",
+                "size": 16,
+                "x": 576.1458740234375,
+                "y": 0,
+                "width": 31.8541259765625,
+                "height": 19.666671752929688,
+                "inkHeight": 9
+              },
+              {
+                "word": "Close-up",
+                "size": 16,
+                "x": 328,
+                "y": 128.33334350585938,
+                "width": 69.546875,
+                "height": 19.666656494140625,
+                "inkHeight": 15
+              },
+              {
+                "word": "Toffee’s",
+                "size": 16,
+                "x": 448,
+                "y": 128.33334350585938,
+                "width": 59.078125,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "saved",
+                "size": 16,
+                "x": 511.578125,
+                "y": 128.33334350585938,
+                "width": 45,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "photo",
+                "size": 16,
+                "x": 448,
+                "y": 150.7291717529297,
+                "width": 43.52606201171875,
+                "height": 19.666671752929688,
+                "inkHeight": 15
+              },
+              {
+                "word": "Could",
+                "size": 18,
+                "x": 328,
+                "y": 181.45834350585938,
+                "width": 51.1875,
+                "height": 21.666656494140625,
+                "inkHeight": 13
+              },
+              {
+                "word": "this",
+                "size": 18,
+                "x": 383.71875,
+                "y": 181.45834350585938,
+                "width": 32.01043701171875,
+                "height": 21.666656494140625,
+                "inkHeight": 14
+              },
+              {
+                "word": "be",
+                "size": 18,
+                "x": 420.26043701171875,
+                "y": 181.45834350585938,
+                "width": 21.88018798828125,
+                "height": 21.666656494140625,
+                "inkHeight": 13
+              },
+              {
+                "word": "Toffee?",
+                "size": 18,
+                "x": 446.671875,
+                "y": 181.45834350585938,
+                "width": 65.33856201171875,
+                "height": 21.666656494140625,
+                "inkHeight": 14
+              },
+              {
+                "word": "1:20:57",
+                "size": 16,
+                "x": 328,
+                "y": 208.98959350585938,
+                "width": 54.125,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "AM",
+                "size": 16,
+                "x": 386.625,
+                "y": 208.98959350585938,
+                "width": 25.49481201171875,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "Colours",
+                "size": 16,
+                "x": 328,
+                "y": 234.98959350585938,
+                "width": 58.68231201171875,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "and",
+                "size": 16,
+                "x": 391.1770935058594,
+                "y": 234.98959350585938,
+                "width": 28.239593505859375,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "shape",
+                "size": 16,
+                "x": 423.9114685058594,
+                "y": 234.98959350585938,
+                "width": 46.020843505859375,
+                "height": 19.666656494140625,
+                "inkHeight": 15
+              },
+              {
+                "word": "like",
+                "size": 16,
+                "x": 474.4270935058594,
+                "y": 234.98959350585938,
+                "width": 25.505218505859375,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "Toffee’s",
+                "size": 16,
+                "x": 504.4270935058594,
+                "y": 234.98959350585938,
+                "width": 59.083343505859375,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "photos.",
+                "size": 16,
+                "x": 328,
+                "y": 258.9895935058594,
+                "width": 56.578125,
+                "height": 19.666656494140625,
+                "inkHeight": 15
+              },
+              {
+                "word": "Compare",
+                "size": 16,
+                "x": 328,
+                "y": 284.9895935058594,
+                "width": 69.32293701171875,
+                "height": 19.666656494140625,
+                "inkHeight": 15
+              },
+              {
+                "word": "the",
+                "size": 16,
+                "x": 401.8177185058594,
+                "y": 284.9895935058594,
+                "width": 24.026031494140625,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "two",
+                "size": 16,
+                "x": 430.34375,
+                "y": 284.9895935058594,
+                "width": 27.86981201171875,
+                "height": 19.666656494140625,
+                "inkHeight": 11
+              },
+              {
+                "word": "pictures.",
+                "size": 16,
+                "x": 462.7083435058594,
+                "y": 284.9895935058594,
+                "width": 65.65103149414062,
+                "height": 19.666656494140625,
+                "inkHeight": 15
+              },
+              {
+                "word": "It",
+                "size": 16,
+                "x": 532.859375,
+                "y": 284.9895935058594,
+                "width": 9.765625,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "can",
+                "size": 16,
+                "x": 547.125,
+                "y": 284.9895935058594,
+                "width": 27.734375,
+                "height": 19.666656494140625,
+                "inkHeight": 9
+              },
+              {
+                "word": "be",
+                "size": 16,
+                "x": 579.359375,
+                "y": 284.9895935058594,
+                "width": 19.125,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "another",
+                "size": 16,
+                "x": 328,
+                "y": 308.9895935058594,
+                "width": 58.078125,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "animal",
+                "size": 16,
+                "x": 390.578125,
+                "y": 308.9895935058594,
+                "width": 49.1875,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "that",
+                "size": 16,
+                "x": 444.265625,
+                "y": 308.9895935058594,
+                "width": 28.91668701171875,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "looks",
+                "size": 16,
+                "x": 477.6770935058594,
+                "y": 308.9895935058594,
+                "width": 40.291656494140625,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "alike.",
+                "size": 16,
+                "x": 522.46875,
+                "y": 308.9895935058594,
+                "width": 39.09375,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "Open",
+                "size": 16,
+                "x": 351.38543701171875,
+                "y": 367.9895935058594,
+                "width": 41.53125,
+                "height": 19.666656494140625,
+                "inkHeight": 15
+              },
+              {
+                "word": "picture",
+                "size": 16,
+                "x": 396.94793701171875,
+                "y": 367.9895935058594,
+                "width": 54.401031494140625,
+                "height": 19.666656494140625,
+                "inkHeight": 16
+              },
+              {
+                "word": "Acknowledge",
+                "size": 16,
+                "x": 488.3489685058594,
+                "y": 367.9895935058594,
+                "width": 105.65103149414062,
+                "height": 19.666656494140625,
+                "inkHeight": 15
+              }
+            ],
+            "pictureAt": 5.785799741744995,
+            "watchEvents": [
+              {
+                "kind": "sighting",
+                "at": "1795828857441",
+                "clipAt": 1.06792
+              }
+            ],
+            "notifications": [
+              {
+                "path": "service-worker",
+                "title": "Could this be Toffee?",
+                "body": "Colours and shape like Toffee’s photos, 1:20:57 AM."
+              }
+            ]
+          },
+          "light": {
+            "video": {
+              "path": "home/runs/lost-found-wide-light.mp4",
+              "kind": "video",
+              "format": "mp4",
+              "codec": "h264",
+              "width": 1920,
+              "height": 1200,
+              "seconds": 9,
+              "bytes": 772579,
+              "sha256": "02b7eb7e0fd421c507a9fd38ace8cb70ee5391359ba90e339250275fb7006048"
+            },
+            "poster": {
+              "webp": {
+                "path": "home/runs/lost-found-wide-light.webp",
+                "kind": "poster",
+                "format": "webp",
+                "width": 1920,
+                "height": 1200,
+                "bytes": 113032,
+                "sha256": "47826bfe0b87f90a08e71cd41df2a343cc8c913f9b72ff61930337730e50950a"
+              },
+              "avif": {
+                "path": "home/runs/lost-found-wide-light.avif",
+                "kind": "poster",
+                "format": "avif",
+                "width": 1920,
+                "height": 1200,
+                "bytes": 113740,
+                "sha256": "b1c11981d0961e7e65de1a75603c0ffc023a11871dd24b1f8b7f4b8a6e3e0ba2"
+              }
+            },
+            "viewport": {
+              "width": 640,
+              "height": 640
+            },
+            "crop": {
+              "x": 0,
+              "y": 60,
+              "width": 640,
+              "height": 400
+            },
+            "scale": 3,
+            "eventAt": 3.39359974861145,
+            "posterAt": 5.540899753570557,
+            "words": [
+              {
+                "word": "just",
+                "size": 16,
+                "x": 544.6302490234375,
+                "y": 0,
+                "width": 27.015625,
+                "height": 19.666671752929688,
+                "inkHeight": 15
+              },
+              {
+                "word": "now",
+                "size": 16,
+                "x": 576.1458740234375,
+                "y": 0,
+                "width": 31.8541259765625,
+                "height": 19.666671752929688,
+                "inkHeight": 9
+              },
+              {
+                "word": "Close-up",
+                "size": 16,
+                "x": 328,
+                "y": 128.33334350585938,
+                "width": 69.546875,
+                "height": 19.666656494140625,
+                "inkHeight": 15
+              },
+              {
+                "word": "Toffee’s",
+                "size": 16,
+                "x": 448,
+                "y": 128.33334350585938,
+                "width": 59.078125,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "saved",
+                "size": 16,
+                "x": 511.578125,
+                "y": 128.33334350585938,
+                "width": 45,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "photo",
+                "size": 16,
+                "x": 448,
+                "y": 150.7291717529297,
+                "width": 43.52606201171875,
+                "height": 19.666671752929688,
+                "inkHeight": 15
+              },
+              {
+                "word": "Could",
+                "size": 18,
+                "x": 328,
+                "y": 181.45834350585938,
+                "width": 51.1875,
+                "height": 21.666656494140625,
+                "inkHeight": 13
+              },
+              {
+                "word": "this",
+                "size": 18,
+                "x": 383.71875,
+                "y": 181.45834350585938,
+                "width": 32.01043701171875,
+                "height": 21.666656494140625,
+                "inkHeight": 14
+              },
+              {
+                "word": "be",
+                "size": 18,
+                "x": 420.26043701171875,
+                "y": 181.45834350585938,
+                "width": 21.88018798828125,
+                "height": 21.666656494140625,
+                "inkHeight": 13
+              },
+              {
+                "word": "Toffee?",
+                "size": 18,
+                "x": 446.671875,
+                "y": 181.45834350585938,
+                "width": 65.33856201171875,
+                "height": 21.666656494140625,
+                "inkHeight": 14
+              },
+              {
+                "word": "1:21:14",
+                "size": 16,
+                "x": 328,
+                "y": 208.98959350585938,
+                "width": 48.83856201171875,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "AM",
+                "size": 16,
+                "x": 381.3333435058594,
+                "y": 208.98959350585938,
+                "width": 25.494781494140625,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "Colours",
+                "size": 16,
+                "x": 328,
+                "y": 234.98959350585938,
+                "width": 58.68231201171875,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "and",
+                "size": 16,
+                "x": 391.1770935058594,
+                "y": 234.98959350585938,
+                "width": 28.239593505859375,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "shape",
+                "size": 16,
+                "x": 423.9114685058594,
+                "y": 234.98959350585938,
+                "width": 46.020843505859375,
+                "height": 19.666656494140625,
+                "inkHeight": 15
+              },
+              {
+                "word": "like",
+                "size": 16,
+                "x": 474.4270935058594,
+                "y": 234.98959350585938,
+                "width": 25.505218505859375,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "Toffee’s",
+                "size": 16,
+                "x": 504.4270935058594,
+                "y": 234.98959350585938,
+                "width": 59.083343505859375,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "photos.",
+                "size": 16,
+                "x": 328,
+                "y": 258.9895935058594,
+                "width": 56.578125,
+                "height": 19.666656494140625,
+                "inkHeight": 15
+              },
+              {
+                "word": "Compare",
+                "size": 16,
+                "x": 328,
+                "y": 284.9895935058594,
+                "width": 69.32293701171875,
+                "height": 19.666656494140625,
+                "inkHeight": 15
+              },
+              {
+                "word": "the",
+                "size": 16,
+                "x": 401.8177185058594,
+                "y": 284.9895935058594,
+                "width": 24.026031494140625,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "two",
+                "size": 16,
+                "x": 430.34375,
+                "y": 284.9895935058594,
+                "width": 27.86981201171875,
+                "height": 19.666656494140625,
+                "inkHeight": 11
+              },
+              {
+                "word": "pictures.",
+                "size": 16,
+                "x": 462.7083435058594,
+                "y": 284.9895935058594,
+                "width": 65.65103149414062,
+                "height": 19.666656494140625,
+                "inkHeight": 15
+              },
+              {
+                "word": "It",
+                "size": 16,
+                "x": 532.859375,
+                "y": 284.9895935058594,
+                "width": 9.765625,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "can",
+                "size": 16,
+                "x": 547.125,
+                "y": 284.9895935058594,
+                "width": 27.734375,
+                "height": 19.666656494140625,
+                "inkHeight": 9
+              },
+              {
+                "word": "be",
+                "size": 16,
+                "x": 579.359375,
+                "y": 284.9895935058594,
+                "width": 19.125,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "another",
+                "size": 16,
+                "x": 328,
+                "y": 308.9895935058594,
+                "width": 58.078125,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "animal",
+                "size": 16,
+                "x": 390.578125,
+                "y": 308.9895935058594,
+                "width": 49.1875,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "that",
+                "size": 16,
+                "x": 444.265625,
+                "y": 308.9895935058594,
+                "width": 28.91668701171875,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "looks",
+                "size": 16,
+                "x": 477.6770935058594,
+                "y": 308.9895935058594,
+                "width": 40.291656494140625,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "alike.",
+                "size": 16,
+                "x": 522.46875,
+                "y": 308.9895935058594,
+                "width": 39.09375,
+                "height": 19.666656494140625,
+                "inkHeight": 12
+              },
+              {
+                "word": "Open",
+                "size": 16,
+                "x": 351.38543701171875,
+                "y": 367.9895935058594,
+                "width": 41.53125,
+                "height": 19.666656494140625,
+                "inkHeight": 15
+              },
+              {
+                "word": "picture",
+                "size": 16,
+                "x": 396.94793701171875,
+                "y": 367.9895935058594,
+                "width": 54.401031494140625,
+                "height": 19.666656494140625,
+                "inkHeight": 16
+              },
+              {
+                "word": "Acknowledge",
+                "size": 16,
+                "x": 488.3489685058594,
+                "y": 367.9895935058594,
+                "width": 105.65103149414062,
+                "height": 19.666656494140625,
+                "inkHeight": 15
+              }
+            ],
+            "pictureAt": 5.540899753570557,
+            "watchEvents": [
+              {
+                "kind": "sighting",
+                "at": "1795828874847",
+                "clipAt": 1.000379
+              }
+            ],
+            "notifications": [
+              {
+                "path": "service-worker",
+                "title": "Could this be Toffee?",
+                "body": "Colours and shape like Toffee’s photos, 1:21:14 AM."
               }
             ]
           }
@@ -1994,8 +3414,8 @@
               "width": 984,
               "height": 984,
               "seconds": 6,
-              "bytes": 315526,
-              "sha256": "fb53e7ec9c2b3f209a147968123b49a19234075552a88fe731a2296119ae23a1"
+              "bytes": 344426,
+              "sha256": "5a0aceb50facf46f5154ffa11ed2d5da0ac7cbfa3d4be2dbcf5ba232d239d32f"
             },
             "poster": {
               "webp": {
@@ -2168,8 +3588,8 @@
               "width": 984,
               "height": 984,
               "seconds": 6,
-              "bytes": 375651,
-              "sha256": "875ab25792d964a6a6c29f9167066d4e2efeda2729c1609d970f7cd8edbed92a"
+              "bytes": 399403,
+              "sha256": "7f579addd1103f9f3c406f1692ffb07b18bbca4a57970a24a599cf00448d3aec"
             },
             "poster": {
               "webp": {
@@ -2344,8 +3764,8 @@
               "width": 1920,
               "height": 1200,
               "seconds": 6,
-              "bytes": 221011,
-              "sha256": "25a21264b413e55dd93bd2ba917fe1714815bb7c622713da819c0de5e0de66aa"
+              "bytes": 236334,
+              "sha256": "e72dc06884dc55ef940df79a8579577149a035167e8a994fa8fd4b2eb22310d4"
             },
             "poster": {
               "webp": {
@@ -2662,8 +4082,8 @@
               "width": 1920,
               "height": 1200,
               "seconds": 6,
-              "bytes": 194904,
-              "sha256": "575b72c1d629575cd81dfd3de835ad5c1434edca4c668ef4f6e96213a08f595c"
+              "bytes": 236943,
+              "sha256": "ad643a15339af721237421a4d2202b2245994fdc3e0af4f925f0ee22cc1dba3a"
             },
             "poster": {
               "webp": {

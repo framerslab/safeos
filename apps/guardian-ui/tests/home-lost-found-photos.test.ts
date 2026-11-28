@@ -7,9 +7,10 @@
  * and two stills from the part of the same recording that the clip leaves
  * out. Their record, photos.json, names each file's size and digest, where it
  * came from, its crop box and its licence, and lists every set of media the
- * Pictures workflow's probe tried with whether the watch alerted. These tests
- * fail when a file differs from its record, when the record lacks a source, a
- * licence or a crop, and when the last set tried did not alert.
+ * Pictures workflow's probe tried with whether the watch alerted: set A, the
+ * three photos, and set B, photo 1 alone. These tests fail when a file differs
+ * from its record, when the record lacks a source, a licence or a crop, and
+ * when the last try of either set did not alert.
  */
 
 import fs from 'fs';
@@ -58,11 +59,12 @@ interface PhotosRecord {
     set: string;
     run: string;
     alerted: boolean;
-    saved: number;
-    alertLine: number;
-    firstAlertSeconds: number | null;
-    best: unknown;
-    photos: string[];
+    saved?: number;
+    alertLine: number | null;
+    failed?: string;
+    firstAlertSeconds?: number | null;
+    best?: unknown;
+    photos: string[] | null;
     clip: string;
   }[];
 }
@@ -155,17 +157,27 @@ describe('the Lost and Found example photos and their record', () => {
     });
   });
 
-  it('lists every set of media tried, and the last one alerted', () => {
+  it('lists every set of media tried, and the last try of each set alerted on the files it names', () => {
     expect(photos.tried.length).toBeGreaterThanOrEqual(1);
     for (const attempt of photos.tried) {
       expect(attempt.run).toMatch(/^https:\/\/github\.com\/framerslab\/safeos\/actions\/runs\/\d+$/);
       expect(typeof attempt.alerted).toBe('boolean');
-      expect(attempt.alertLine).toBe(70);
+      // A try that failed before the probe read the settings has no alert line.
+      if (attempt.failed !== undefined && attempt.alertLine === null) expect(attempt.alerted).toBe(false);
+      else expect(attempt.alertLine).toBe(70);
     }
-    const last = photos.tried[photos.tried.length - 1];
-    expect(last.alerted).toBe(true);
-    // The set that alerted is these files and this clip: a photo or the clip changed since needs a new probe.
-    expect(last.photos).toEqual(photos.photos.map((photo) => photo.sha256));
-    expect(last.clip).toBe(clip.sha256);
+    // The newest try of each set, in the order the sets were first tried.
+    const latest = new Map(photos.tried.map((attempt) => [attempt.set, attempt]));
+    const digests = photos.photos.map((photo) => photo.sha256);
+    // Set A is the three photos. Set B is photo 1 alone, the photo taken on another day, which the
+    // home page's Lost and Found run enrols: photos 2 and 3 are stills from the clip's own recording.
+    expect([...latest.keys()]).toEqual(['A', 'B']);
+    expect(latest.get('A')!.photos).toEqual(digests);
+    expect(latest.get('B')!.photos).toEqual([digests[0]]);
+    for (const last of latest.values()) {
+      expect(last.alerted).toBe(true);
+      // These files and this clip: a photo or the clip changed since needs a new probe.
+      expect(last.clip).toBe(clip.sha256);
+    }
   });
 });

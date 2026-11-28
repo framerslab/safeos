@@ -71,7 +71,7 @@ jobs:
         run: npm install --legacy-peer-deps
 
       - name: Install SQLite CLI for backup and restore tests
-        run: sudo apt-get update && sudo apt-get install -y sqlite3
+        run: (sudo apt-get update || true) && sudo apt-get install -y sqlite3
 
       - name: Run tests with coverage
         run: npm test -- --coverage
@@ -175,6 +175,12 @@ jobs:
       - name: Run Jest
         run: npx jest --ci
 
+      # A stylesheet that names an animation with no @keyframes leaves it
+      # standing still; the check reads every stylesheet the app ships.
+      - name: Check that every stylesheet animation has its keyframes
+        if: ${{ !cancelled() }}
+        run: node --test scripts/css-animations.test.mjs
+
   # Walks the monitor in Chromium against the static export: a test camera
   # whose picture keeps changing, and the alerts that come while it does
   # (e2e/alerts-repeat.spec.ts); then each alert's picture, its box and its
@@ -226,7 +232,7 @@ jobs:
       - name: Install ffmpeg
         id: ffmpeg
         if: always()
-        run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg)
+        run: command -v ffmpeg || (sudo apt-get update || true; sudo apt-get install -y --no-install-recommends ffmpeg)
 
       # Chromium's fake camera reads a .y4m file and its fake microphone a
       # .wav file. Both are made here from the committed clip and never

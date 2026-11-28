@@ -257,6 +257,7 @@ export function HomeDetection() {
         <h2 id="detection-title" className="home-h2">Deep learning, in your browser.</h2>
         <p className="home-p home-detection__lead">
           Motion and sound alerts compare camera frames and measure the sound level in your browser, with no model.
+          Lost and Found compares the camera’s picture with your pet’s photos by colour and outline, also with no model.
           The People and Wildlife pages add an object-detection model that runs in your browser too.
           Open a card to see how each part works.
         </p>

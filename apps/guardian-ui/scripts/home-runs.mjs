@@ -10,7 +10,7 @@ import {
   outputTime, readRecordingWords, sha256, spool, testPosterEncoders, wideView,
 } from './home-run-frames.mjs';
 import { recordingInputs } from './home-run-inputs.mjs';
-import { omittedRuns, placeSubject, recipes } from './home-run-list.mjs';
+import { omittedRuns, placeSubject, recipes, recordAgainOnSlowStart } from './home-run-list.mjs';
 import { launchSampleDevice, recordingSettings, seededContext } from './home-run-seed.mjs';
 
 const [baseUrl, outDir, video, audio, gardenVideo, gardenAudio] = process.argv.slice(2);
@@ -70,7 +70,7 @@ async function recordVariant(browser, recipe, view, avif) {
   try {
     await captureNotifications(context);
     const cdp = await context.newCDPSession(page);
-    const prepared = await recipe.prepare({ page, baseUrl, view });
+    const prepared = await recipe.prepare({ page, baseUrl, view, photos: recipe.photos });
     const actualLook = await page.evaluate(() => document.documentElement.classList.contains('dark') ? 'dark' : 'light');
     assert.equal(actualLook, view.look, 'The site look differs from the browser');
     const viewport = await page.evaluate(() => [innerWidth, innerHeight, devicePixelRatio]);
@@ -129,6 +129,8 @@ async function recordVariant(browser, recipe, view, avif) {
         watchEvents: cut.watchEvents.map(({ kind, at, clipAt }) => ({ kind, at, clipAt })),
       } : {}),
       ...(cut.notices?.length ? { notifications: cut.notices } : {}),
+      // The files the page was given and the SHA-256 of their bytes, as the recorder handed them over.
+      ...(prepared?.enrolled ? { enrolled: prepared.enrolled } : {}),
     };
   } catch (cause) {
     const diagnostics = path.join(scratch, 'home-run-diagnostics');
@@ -148,7 +150,7 @@ async function recordSet(browsers, recipe, avif) {
   while (true) {
     let narrower = width;
     for (const look of looks) {
-      const result = await recordVariant(browsers.square, recipe, { size: 'square', look, width, height: 844, scale: 3, seconds: recipe.seconds }, avif);
+      const result = await recordAgainOnSlowStart(() => recordVariant(browsers.square, recipe, { size: 'square', look, width, height: 844, scale: 3, seconds: recipe.seconds }, avif));
       if (result.narrower) narrower = Math.min(narrower, result.narrower);
       else variants.square[look] = result;
     }
@@ -158,20 +160,33 @@ async function recordSet(browsers, recipe, avif) {
   const wide = wideView(recipe.id);
   const wideBrowser = wide.scale === 3 ? browsers.square : browsers.wide;
   for (const look of looks) {
-    variants.wide[look] = await recordVariant(wideBrowser, recipe, {
+    variants.wide[look] = await recordAgainOnSlowStart(() => recordVariant(wideBrowser, recipe, {
       ...wide, size: 'wide', look, seconds: recipe.seconds,
-    }, avif);
+    }, avif));
   }
   const { id, key, route, state, clip, seconds, description, longDescription } = recipe;
   const first = variants.square.dark;
+  // Every variant enrols the pet on its own device: the run's entry keeps the one list they all gave.
+  const given = ['square', 'wide'].flatMap((size) => looks.map((look) => variants[size][look]));
+  const enrolled = first.enrolled;
+  for (const variant of given) {
+    assert.deepEqual(variant.enrolled, enrolled, `${id}: the variants gave the page different files`);
+    delete variant.enrolled;
+  }
   return {
-    id, key, route, state, clip, seconds, description, longDescription,
+    id, key, route, state, clip, ...(recipe.photos ? { photos: recipe.photos } : {}), ...(enrolled ? { enrolled } : {}), seconds, description, longDescription,
     eventAt: first.eventAt, posterAt: first.posterAt, visibleWords: first.words.map(({ word }) => word),
     ...(first.meterPeaks ? { meterPeaks: first.meterPeaks } : {}), variants,
   };
 }
 
 function sampleInput(recipe) {
+  if (recipe.microphone === 'silence') {
+    // The camera plays the sample clip from its start; the microphone hears silence.
+    const microphone = path.join(workspace, `${recipe.id}.wav`);
+    ffmpeg(['-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=mono', '-t', '30', '-c:a', 'pcm_s16le', microphone]);
+    return [video, microphone];
+  }
   if (!recipe.inputOffset) return [video, audio];
   assert.equal(clips.find(({ path }) => path === recipe.clip)?.clipOffset, recipe.inputOffset);
   const input = fileURLToPath(new URL(recipe.clip, publicRoot));

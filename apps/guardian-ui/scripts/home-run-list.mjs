@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { recordingSettings as settings } from './home-run-seed.mjs';
+import { enrol } from './lost-found-walk.mjs';
 
 export const omittedRuns = [
   { id: 'alert', reason: 'Requires a garden recording with a kept movement picture and its close-up.' },
-  { id: 'lost-found', reason: 'Requires a recording of a saved pet’s fingerprint and its possible sighting.' },
 ];
 
 const SECOND = 1000;
@@ -14,6 +16,13 @@ const KITTEN_FACES_CAMERA = { from: 22, to: 25.25 };
 const ALERT_HOLD_SECONDS = 2.5;
 const WATCH_CLIP_START = 20;
 const WATCH_POSTER_AT = 22.25;
+// Lost and Found: Toffee is enrolled from photo 1 alone, the photo taken on
+// another day. Photos 2 and 3 are stills from the recording the clip comes
+// from, so they would compare the clip with itself.
+const PET = 'Toffee';
+const LOST_FOUND_PHOTOS = ['home/lost-found/photo-1.jpg'];
+const LOST_FOUND_START_AT = 2;
+const LOST_FOUND_HOLD_AT = 5;
 const between = (value, { from, to }) => value >= from && value <= to;
 const pose = (page, name) => page.getByRole('button', { name, exact: true });
 
@@ -33,6 +42,19 @@ async function openWatch(page, baseUrl) {
 }
 
 // The page and DevTools use the same wall-clock time base.
+// A fake camera that is slow to start is the runner's, not the app's: a recipe marks the failure
+// with slowStart and the variant is recorded again in a new context, at most twice.
+export async function recordAgainOnSlowStart(record, log = console.log) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await record();
+    } catch (error) {
+      if (!(error.slowStart || error.cause?.slowStart) || attempt === 3) throw error;
+      log(`${error.message}; recording again, ${attempt} of 2`);
+    }
+  }
+}
+
 export const browserTime = (page) => page.evaluate(() => (performance.timeOrigin + performance.now()) / 1000);
 
 function sleepUntil(page, start, offset) {
@@ -173,6 +195,13 @@ export async function placeSubject(page, recipe, view, height) {
   const header = await page.locator('.app-header').first().boundingBox();
   const headerBottom = Math.ceil(header ? header.y + header.height : 0);
   if (recipe.id === 'dashboard') return placeDashboard(page, headerBottom + 8, height);
+  if (recipe.id === 'lost-found') {
+    // The crop starts under the fixed header, below its scroll shadow, with Watch for at its top.
+    const cropTop = headerBottom + 4;
+    const top = await viewingTop(page, recipe.anchor);
+    await page.evaluate((y) => window.scrollTo({ top: y, behavior: 'instant' }), Math.max(0, top - cropTop - 8));
+    return cropTop;
+  }
 
   const anchor = recipe.anchor;
   const top = await viewingTop(page, anchor);
@@ -547,6 +576,172 @@ async function siteSettings({ page, view, top, sample, whole, nextFrameAfter, ca
   return { start, words, poster: start + 1, event: start + 2 };
 }
 
+// The files the recorder gives the page come from the run's photos alone; the
+// run's entry in runs.json lists the files the page was given, by their place
+// under public/, with the SHA-256 of the bytes handed over.
+async function prepareLostFound({ page, baseUrl, view, photos }) {
+  assert.ok(Array.isArray(photos) && photos.length, 'The Lost and Found run names no photos');
+  const publicDir = fileURLToPath(new URL('../public/', import.meta.url));
+  const { given } = await enrol(page, baseUrl, { name: PET, photos: photos.map((file) => path.join(publicDir, file)) });
+  const enrolled = given.map(({ file, sha256 }) => ({ file: path.relative(publicDir, file).split(path.sep).join('/'), sha256 }));
+  // The Lost & Found page opens the watch with Lost and Found and its pet.
+  await page.getByRole('button', { name: 'Start Monitoring' }).first().click();
+  await page.waitForURL((url) => url.pathname === WATCH, { timeout: 15 * SECOND });
+  await page.waitForFunction(() => document.documentElement.dataset.appStarted === 'true');
+  await page.evaluate(() => document.fonts.ready.then(() => {}));
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('safeos-settings')).state);
+  assert.equal(saved.activePresetId, 'custom', 'Expected the Custom preset');
+  assert.equal(saved.globalSettings.motionSensitivity, 0, 'Motion starts at its least sensitive setting');
+  // The run sets none of Lost and Found's own settings: the comparison runs at the app's defaults.
+  const lostFound = await page.evaluate(() => JSON.parse(localStorage.getItem('safeos-lost-found') || '{}').state?.settings ?? null);
+  assert.ok(!lostFound || (lostFound.minConfidenceForAlert === 70 && lostFound.processingMode === 'local'),
+    'Lost and Found must compare at the app’s default settings: ' + JSON.stringify(lostFound));
+  assert.equal(await page.getByRole('radio', { name: 'Lost and Found', exact: true }).isChecked(), true,
+    'The watch must have Lost and Found chosen');
+  const photo = page.locator('.watch-pet .watch-pet__photo').first();
+  await photo.waitFor();
+  await photo.evaluate((image) => image.decode());
+  await pose(page, 'Start watching').waitFor();
+  // Open the fake camera and microphone once and close them before the recording. The first
+  // open in a new browser starts Chromium's capture service, which took up to 2.3 s on a CI
+  // runner. A start slower than the run's 1.5 seconds is recorded again.
+  await page.evaluate(async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    const video = document.createElement('video');
+    video.muted = true;
+    video.srcObject = stream;
+    await video.play();
+    await new Promise((resolve) => video.requestVideoFrameCallback(resolve));
+    stream.getTracks().forEach((track) => track.stop());
+    video.srcObject = null;
+  });
+  if (view.size === 'wide') {
+    // Set the camera's picture beside the pair and the words, so the whole entry fits the capture.
+    await page.addStyleTag({ content: `
+      .watch-list .alert-picture[data-kind='sighting'][data-form='large'][data-status] {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        column-gap: 16px;
+      }
+      .watch-list .alert-picture[data-kind='sighting'][data-form='large'] > .alert-picture__frame { grid-row: 1 / span 3; }
+    ` });
+  }
+  await trackWatchAlerts(page);
+  return { enrolled };
+}
+
+async function lostFound({ page, crop, view, sample, whole, nextFrameAfter, captureFrame }) {
+  // 0–2 seconds: Watch for, Lost and Found chosen, with Toffee's one saved photo.
+  // The wide crop cannot hold the heading with the whole Start watching key under the pet's row,
+  // so it keeps the choice, Lost and Found, and the photo, with the heading above the crop.
+  await settleEdges(page, crop, view.size === 'wide'
+    ? ['.watch-for__options', '.watch-pet .watch-pet__photo']
+    : ['.watch-for__heading', '.watch-pet .watch-pet__photo']);
+  await whole('Watch for with Toffee’s saved photo');
+  const start = await browserTime(page);
+  const end = start + view.seconds;
+
+  // 2 seconds: the camera's frame comes into the crop in one step and Start watching is pressed.
+  await sleepUntil(page, start, LOST_FOUND_START_AT);
+  await scrollSubject(page, '.watch-frame__screen', crop.y + 4, 0);
+  await settleEdges(page, crop, ['.watch-frame__screen'], { controls: false });
+  if (view.size === 'square') {
+    // The square crop cannot hold the whole frame with the meters under it: from the press, when
+    // the meters come in, the pet's row "Comparing with Toffee’s photos" would run past the crop's
+    // foot. Each time the page lays out, before it paints, the page moves up by the fewest pixels
+    // that bring the row whole into the crop, 4 px above its foot; the camera's picture gives up
+    // its top instead. It never moves back, and it stops before the hold at five seconds.
+    await page.evaluate((foot) => {
+      const keepRow = () => {
+        const row = document.querySelector('.watch-meter--pet');
+        if (!row) return;
+        const over = row.getBoundingClientRect().bottom - foot;
+        if (over > 0.5) window.scrollBy({ top: Math.ceil(over), behavior: 'instant' });
+      };
+      const mutations = new MutationObserver(keepRow);
+      mutations.observe(document.body, { subtree: true, childList: true, attributes: true, characterData: true });
+      const sizes = new ResizeObserver(keepRow);
+      sizes.observe(document.body);
+      for (const part of document.querySelectorAll('.watch-grid__frame, .watch-frame')) sizes.observe(part);
+      window.homeStopKeepingRow = () => { mutations.disconnect(); sizes.disconnect(); };
+    }, crop.y + crop.height - 4);
+  }
+  // The page notes the press and the moment the frame shows the live picture, so the time the
+  // recorder takes to ask is not counted as the camera's. The frame was settled in view just
+  // now, so the press skips the waits that make sure a key is still and in view.
+  await page.evaluate(() => {
+    const now = () => (performance.timeOrigin + performance.now()) / 1000;
+    window.homeStartTimes = { press: null, live: null };
+    document.addEventListener('click', (event) => {
+      if (event.target.closest('button')?.textContent.trim() === 'Start watching') window.homeStartTimes.press ??= now();
+    }, { capture: true });
+    const observer = new MutationObserver(() => {
+      if (!document.querySelector('.watch-frame[data-phase="live"]')) return;
+      window.homeStartTimes.live = now();
+      observer.disconnect();
+    });
+    observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-phase'] });
+  });
+  await pose(page, 'Start watching').click({ force: true });
+  const slowStart = ({ press, live }) => Object.assign(new Error(`The camera took ${((live ?? Infinity) - start).toFixed(2)} s to start`
+    + ` (Start watching pressed at ${((press ?? Infinity) - start).toFixed(2)} s)`), { slowStart: true });
+  const live = await page.locator('.watch-frame[data-phase="live"]').waitFor({ timeout: 3 * SECOND }).then(() => true, () => false);
+  const { press: pressAt, live: liveAt } = await page.evaluate(() => window.homeStartTimes);
+  assert.ok(pressAt, 'Start watching did not receive a click');
+  if (!live || !liveAt || liveAt - start > LOST_FOUND_START_AT + 1.5) throw slowStart({ press: pressAt, live: liveAt });
+  await whole('The watch’s live picture with the meters', { controls: false });
+
+  // 2–5 seconds: the watch compares the clip with Toffee's photo; the possible sighting arrives.
+  const sightingBy = start + LOST_FOUND_HOLD_AT - 0.25;
+  await page.waitForFunction(() => window.homeWatchEvents.some(({ kind }) => kind === 'sighting'), null,
+    // A timeout of 0 would wait for ever: wait at least a millisecond.
+    { timeout: Math.max(1, Math.round((sightingBy - await browserTime(page)) * 1000)), polling: 50 }).catch(() => {});
+  const events = await page.evaluate(() => window.homeWatchEvents);
+  const arrival = events.find(({ kind }) => kind === 'sighting');
+  assert.ok(arrival && arrival.observedAt <= sightingBy,
+    `No possible sighting ${LOST_FOUND_HOLD_AT - LOST_FOUND_START_AT} s after Start watching: ` + JSON.stringify({ liveAt: liveAt - start, events }));
+  console.log(`Lost and Found: Start watching pressed at ${(pressAt - start).toFixed(2)} s, camera live at ${(liveAt - start).toFixed(2)} s, possible sighting at ${(arrival.observedAt - start).toFixed(2)} s, clip ${arrival.clipAt.toFixed(3)} s`);
+
+  // The entry's pictures are read before the hold, so the move into view is the hold's first step.
+  const card = `.watch-list__body [data-alert-card][data-kind="sighting"][data-alert-at="${arrival.at}"]`;
+  const entry = page.locator(card);
+  const petPhoto = entry.getByRole('img', { name: `${PET}’s saved photo`, exact: true });
+  await petPhoto.waitFor({ timeout: 2 * SECOND });
+  await petPhoto.evaluate((image) => image.decode());
+  // The close-up and the camera's picture come into the entry a moment after the sighting, from the
+  // alert's own copies; until then the pair holds the saved photo alone.
+  const kept = [`${card} .alert-picture__pair img`, ...(view.size === 'wide' ? [`${card} .alert-picture__frame img`] : [])];
+  await page.waitForFunction((selectors) => selectors.every((selector) => document.querySelector(selector)?.getAttribute('src')?.startsWith('blob:')),
+    kept, { timeout: 3 * SECOND, polling: 50 });
+  await readPicture(entry.locator('.alert-picture__pair img').first());
+  const keep = view.size === 'wide'
+    ? [`${card} .alert-picture__frame img`, `${card} .alert-picture__pair`, `${card} .alert-picture__words`]
+    : [`${card} .alert-picture__pair`, `${card} .alert-picture__lead`];
+  if (view.size === 'wide') await readPicture(entry.locator('.alert-picture__frame img').first());
+
+  // 5–9 seconds: the possible sighting's entry, the camera's picture beside the saved photo.
+  await sleepUntil(page, start, LOST_FOUND_HOLD_AT);
+  await page.evaluate(() => window.homeStopKeepingRow?.());
+  await scrollSubject(page, view.size === 'wide' ? card : `${card} .alert-picture__pair`, crop.y + 6, 0);
+  await settleEdges(page, crop, keep);
+  const checkEntry = async () => {
+    const boxes = await Promise.all(keep.map((selector) => page.locator(selector).first().boundingBox()));
+    assert.ok(boxes.every((box) => fits(box, crop)), 'The possible sighting left the frame: ' + JSON.stringify({ boxes, crop }));
+    await whole('The held possible sighting');
+  };
+  await checkEntry();
+  const words = await sample();
+  const pictureAt = await frameAfter(page, { nextFrameAfter, captureFrame }, await browserTime(page));
+  assert.ok(end - pictureAt >= ALERT_HOLD_SECONDS, 'The possible sighting did not stay in frame for 2.5 seconds');
+  await holdThrough(page, end, checkEntry);
+  const seen = await page.evaluate(() => window.homeWatchEvents);
+  assert.deepEqual(seen.map(({ kind }) => kind), ['sighting'], 'The Lost and Found recording must show one possible sighting and no other alert: ' + JSON.stringify(seen));
+  const notices = await page.evaluate(() => window.homeRunNotifications);
+  return {
+    start, end, poster: pictureAt, words, event: arrival.observedAt, pictureAt,
+    notices, watchEvents: seen,
+  };
+}
+
 export const recipes = [
   {
     id: 'watching',
@@ -589,6 +784,30 @@ export const recipes = [
     ],
     prepare: prepareDashboard,
     record: dashboard,
+  },
+  {
+    id: 'lost-found',
+    key: 'Lost and Found',
+    route: WATCH,
+    state: 'sighting',
+    clip: 'home/sample-clip.mp4',
+    photos: LOST_FOUND_PHOTOS,
+    // The microphone hears nothing, so the clip's bark at 0:06 raises no sound alert over the entry.
+    microphone: 'silence',
+    seconds: 9,
+    anchor: '.watch-for',
+    settings: {
+      ...settings,
+      globalSettings: { ...settings.globalSettings, motionSensitivity: 0 },
+    },
+    description: 'The kitten clip compared with a photo from another day, and a possible sighting.',
+    longDescription: [
+      '0–2 seconds. Lost and Found holds Toffee’s one saved photo, a kitten lying on a beige carpet.',
+      '2–5 seconds. The watch compares the kitten clip, on a grey carpet, with that photo twice a second.',
+      '5–9 seconds. A possible sighting asks "Could this be Toffee?" with the camera’s picture beside the saved photo, to check by eye.',
+    ],
+    prepare: prepareLostFound,
+    record: lostFound,
   },
   {
     id: 'settings',

@@ -78,11 +78,11 @@ describe('the page reads before any script runs and asks for nothing', () => {
     expect(all('#how-it-works details')).toHaveLength(6);
   });
 
-  it('opens on Watching and offers Dashboard and Settings next', () => {
+  it('opens on Watching and offers Dashboard, Lost and Found and Settings next', () => {
     const region = one('section[aria-label="Recorded runs of SafeOS Guardian"]');
     expect(region).not.toBeNull();
     const keys = Array.from(region!.querySelectorAll('button[data-run]')).map(words);
-    expect(keys).toEqual(['Watching', 'Dashboard', 'Settings']);
+    expect(keys).toEqual(['Watching', 'Dashboard', 'Lost and Found', 'Settings']);
     expect(region!.querySelector('[aria-current="step"]')?.getAttribute('data-run')).toBe('watching');
   });
 
@@ -384,6 +384,24 @@ describe('recorded app runs', () => {
       const text = posterWords.map(({ word }) => word).join(' ');
       expect(text).not.toMatch(/SafeOS|Guardian|Settings Help|Motion and sound alerts that run in your browser/);
       expect(text).toMatch(id === 'watching' ? /Motion .*Sound / : /Since you last looked.*Movement at.*Sound at/);
+    }
+  });
+
+  it('plays Lost and Found third, enrolled from photo 1 alone, and holds its possible sighting at the end', () => {
+    const run = recorded.runs.find(({ id }) => id === 'lost-found');
+    expect(recorded.runs.map(({ id }) => id)).toEqual(['watching', 'dashboard', 'lost-found', 'settings']);
+    expect(recorded.omitted.map(({ id }) => id)).toEqual(['alert']);
+    // Photos 2 and 3 are stills from the recording the clip comes from.
+    expect(run?.photos).toEqual(['home/lost-found/photo-1.jpg']);
+    expect(run?.clip).toBe('home/sample-clip.mp4');
+    for (const size of ['square', 'wide'] as const) {
+      for (const variant of Object.values(run!.variants[size])) {
+        const text = variant.words.map(({ word }) => word).join(' ');
+        expect(text).toMatch(/Could this be Toffee\?/);
+        expect(text).toMatch(/Toffee’s saved photo/);
+        expect(variant.watchEvents?.map(({ kind }) => kind)).toEqual(['sighting']);
+        expect(run!.seconds - variant.pictureAt!).toBeGreaterThanOrEqual(2.5);
+      }
     }
   });
 

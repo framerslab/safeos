@@ -365,7 +365,7 @@ export function HomeRuns({ runs }: { runs: HomeRun[] }) {
         {posterFailed && !showFrame && <Trouble />}
         <span className="corner-ticks" aria-hidden="true"><i /><i /><i /><i /></span>
       </div>
-      <div className="home-run__controls">
+      <div className={`home-run__controls ${styles.controls}`}>
         <button type="button" className="home-run__control home-run__toggle" disabled={!environment}
           onClick={toggle} aria-label={toggleActive ? 'Pause the recordings' : 'Play the recordings'}>
           {toggleActive ? 'Pause' : 'Play'}
