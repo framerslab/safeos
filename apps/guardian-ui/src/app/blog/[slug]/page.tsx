@@ -197,8 +197,9 @@ const blogContent: Record<string, BlogContent> = {
           samples the live feed every 500 ms in Lost &amp; Found&apos;s local processing mode, its
           default, and every 900 ms in its hybrid mode. The page runs one comparison at a time, so a
           comparison that takes longer than that holds back the next one until it ends, and the feed is
-          sampled fewer times. Each frame is scored on average colour first, then region by region on a weighted mix: histogram 40%,
-          dominant colours 35%, edges 15%, size 10%. The code is in{' '}
+          sampled fewer times. Each frame is compared on average colour first, then region by region
+          on a weighted mix that counts the histogram most, then the dominant colours, then the edges,
+          then the size. The code is in{' '}
           <a
             href="https://github.com/framerslab/safeos/blob/master/apps/guardian-ui/src/lib/visual-fingerprint.ts"
             target="_blank"

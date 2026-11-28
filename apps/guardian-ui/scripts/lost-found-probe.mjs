@@ -21,7 +21,9 @@
 // watch kept, inside the 85 s (scripts/lost-found-verdict.mjs). The result goes to <out-dir>/lost-found-probe.json.
 // It exits 1 when the watch does not alert for a set, when the camera does not start or
 // has stopped or paused by the end of a watch, and when any step fails, with a picture of the whole page,
-// failed-lost-found-probe-<set>.png.
+// failed-lost-found-probe-<set>.png. A set that fails, from reading its photos and starting
+// the browser on, still gives its entry, with the run, the commit and the settings read
+// before it failed (null where none were read), and the next set runs.
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -65,18 +67,26 @@ await mkdir(outDir, { recursive: true });
 /** Enrols the set's photos, watches the clip for 85 s and returns what the watch kept, judged. */
 async function probe({ set, photos: entries }) {
   const photos = entries.map((photo) => path.join(PUBLIC, photo.file));
-  const photoDigests = await Promise.all(photos.map(async (file) => sha256(await readFile(file))));
   const say = (line) => console.log(`probe ${set}: ${line}`);
-  const browser = await chromium.launch({
-    args: [
-      '--use-fake-ui-for-media-stream',
-      '--use-fake-device-for-media-stream',
-      `--use-file-for-fake-video-capture=${path.resolve(videoFile)}`,
-      `--use-file-for-fake-audio-capture=${path.resolve(audioFile)}`,
-    ],
-  });
+  const run = process.env.CAPTURE_RUN ?? null;
+  const commit = process.env.CAPTURE_COMMIT ?? null;
+  // A step that fails before the photos or the settings are read leaves them null.
+  let photoDigests = null;
+  let alertLine = null;
+  let saveLine = null;
+  let colourSensitivity = null;
+  let browser;
   let page;
   try {
+    photoDigests = await Promise.all(photos.map(async (file) => sha256(await readFile(file))));
+    browser = await chromium.launch({
+      args: [
+        '--use-fake-ui-for-media-stream',
+        '--use-fake-device-for-media-stream',
+        `--use-file-for-fake-video-capture=${path.resolve(videoFile)}`,
+        `--use-file-for-fake-audio-capture=${path.resolve(audioFile)}`,
+      ],
+    });
     const context = await seededContext(browser, { viewport: { width: 1280, height: 1000 }, deviceScaleFactor: 1, colorScheme: 'dark' });
     page = await context.newPage();
 
@@ -86,9 +96,9 @@ async function probe({ set, photos: entries }) {
     const liveAt = await startWatch(page);
     const settings = await page.evaluate(() => JSON.parse(localStorage.getItem('safeos-lost-found') || '{}').state?.settings ?? null);
     if (!settings) throw new Error('the device holds no Lost and Found settings');
-    const alertLine = settings.minConfidenceForAlert;
-    const saveLine = settings.minConfidenceForRecord;
-    const colourSensitivity = settings.colorSensitivity;
+    alertLine = settings.minConfidenceForAlert;
+    saveLine = settings.minConfidenceForRecord;
+    colourSensitivity = settings.colorSensitivity;
     say(`watch live; alert line ${alertLine}, save line ${saveLine}, colour sensitivity ${colourSensitivity}`);
 
     let watch = { saved: [], sightings: [] };
@@ -135,8 +145,8 @@ async function probe({ set, photos: entries }) {
 
     const result = {
       set,
-      run: process.env.CAPTURE_RUN ?? null,
-      commit: process.env.CAPTURE_COMMIT ?? null,
+      run,
+      commit,
       alertLine,
       saveLine,
       colourSensitivity,
@@ -157,9 +167,20 @@ async function probe({ set, photos: entries }) {
   } catch (err) {
     console.error(`probe ${set}: failed: ${err.message}`);
     if (page) await page.screenshot({ path: path.join(outDir, `failed-lost-found-probe-${set}.png`), fullPage: true }).catch(() => {});
-    return { set, failed: err.message, alerted: false, photos: photoDigests, clip: clipDigest };
+    return {
+      set,
+      run,
+      commit,
+      alertLine,
+      saveLine,
+      colourSensitivity,
+      failed: err.message,
+      alerted: false,
+      photos: photoDigests,
+      clip: clipDigest,
+    };
   } finally {
-    await browser.close();
+    if (browser) await browser.close().catch(() => {});
   }
 }
 

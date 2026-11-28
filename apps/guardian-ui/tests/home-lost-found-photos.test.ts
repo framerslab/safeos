@@ -59,11 +59,12 @@ interface PhotosRecord {
     set: string;
     run: string;
     alerted: boolean;
-    saved: number;
-    alertLine: number;
-    firstAlertSeconds: number | null;
-    best: unknown;
-    photos: string[];
+    saved?: number;
+    alertLine: number | null;
+    failed?: string;
+    firstAlertSeconds?: number | null;
+    best?: unknown;
+    photos: string[] | null;
     clip: string;
   }[];
 }
@@ -161,7 +162,9 @@ describe('the Lost and Found example photos and their record', () => {
     for (const attempt of photos.tried) {
       expect(attempt.run).toMatch(/^https:\/\/github\.com\/framerslab\/safeos\/actions\/runs\/\d+$/);
       expect(typeof attempt.alerted).toBe('boolean');
-      expect(attempt.alertLine).toBe(70);
+      // A try that failed before the probe read the settings has no alert line.
+      if (attempt.failed !== undefined && attempt.alertLine === null) expect(attempt.alerted).toBe(false);
+      else expect(attempt.alertLine).toBe(70);
     }
     // The newest try of each set, in the order the sets were first tried.
     const latest = new Map(photos.tried.map((attempt) => [attempt.set, attempt]));

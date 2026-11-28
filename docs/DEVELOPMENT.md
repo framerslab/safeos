@@ -833,12 +833,16 @@ its four parts. Only what the watch kept inside the 85 s counts. Every set
 runs, and the step fails when the watch does not alert for a set, when the
 camera does not start or its picture is not live at the end, and when any
 step of the walk or of the database reads fails, with a picture of the page,
-`failed-lost-found-probe-<set>.png`. Its result, `lost-found-probe.json`, holds
+`failed-lost-found-probe-<set>.png`. A set that fails, from reading its photos
+and starting the browser on, still gives its entry, with the run, the commit and
+the settings read before it failed (null where none were read), and the next
+set runs. Its result, `lost-found-probe.json`, holds
 one entry a set under `sets` and is in the
 run's `home-pictures` artifact beside `home/`. Each set of photos the probe
 tries is copied into the `tried` list of `public/home/lost-found/photos.json`,
 the tries that did not alert as well as those that did, with the digests of
-the photos and the clip each ran on, and the newest try of set A and of set B
+the photos and the clip each ran on (a try that failed before the settings were
+read has no alert line), and the newest try of set A and of set B
 must have alerted on the committed photos and clip. The list is held by
 `tests/home-lost-found-photos.test.ts`, with each
 photo's size, digest, source, crop box and licence, so a photo or the clip
