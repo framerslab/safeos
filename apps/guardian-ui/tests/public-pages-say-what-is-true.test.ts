@@ -649,6 +649,16 @@ describe('the public pages say what the software does', () => {
     expect(findPhrases(LOST_FOUND_SCORE_WORDS, LOST_FOUND_SCREENS)).toEqual([]);
   });
 
+  it('the blog explains how Lost and Found compares with no score or percentage', () => {
+    const blog = stripComments('page.tsx', fs.readFileSync(app('src', 'app', 'blog', '[slug]', 'page.tsx'), 'utf8'));
+    const from = blog.indexOf('<h2>How Lost &amp; Found compares</h2>');
+    expect(from).toBeGreaterThan(-1);
+    const to = blog.indexOf('<h2>', from + 1);
+    const section = blog.slice(from, to === -1 ? undefined : to);
+    expect(section).toMatch(/compares/);
+    expect(section.match(/\bscor\w*|\d+\s*%|per ?cent\w*/gi) ?? []).toEqual([]);
+  });
+
   it('no page makes a claim the code does not back', () => {
     expect(findPhrases(UNBACKED_CLAIMS)).toEqual([]);
   });

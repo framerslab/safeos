@@ -242,3 +242,27 @@ test('the committed Lost and Found run names the photos the recorder gave the pa
   assert.throws(() => verifyBundle(homeEnrolling([{ ...photo1, sha256: photo2.sha256 }])), /enrolled/);
   assert.throws(() => verifyBundle(homeEnrolling(undefined)), /enrolled/);
 });
+
+test('the Lost and Found probe tries every set and writes its result when the browser does not start', () => {
+  const out = mkdtempSync(path.join(scratch, 'probe-'));
+  const noBrowsers = mkdtempSync(path.join(scratch, 'no-browsers-'));
+  const run = 'https://github.com/framerslab/safeos/actions/runs/1';
+  const result = spawnSync(process.execPath, [path.join(scripts, 'lost-found-probe.mjs'), 'http://127.0.0.1:9',
+    out, path.join(out, 'clip.y4m'), path.join(out, 'clip.wav')], {
+    encoding: 'utf8',
+    timeout: 60_000,
+    env: { ...process.env, PLAYWRIGHT_BROWSERS_PATH: noBrowsers, CAPTURE_RUN: run, CAPTURE_COMMIT: 'a'.repeat(40) },
+  });
+  assert.equal(result.status, 1, result.stderr);
+  const { sets } = JSON.parse(readFileSync(path.join(out, 'lost-found-probe.json'), 'utf8'));
+  assert.deepEqual(sets.map(({ set }) => set), ['A', 'B']);
+  for (const entry of sets) {
+    assert.equal(entry.alerted, false);
+    assert.equal(typeof entry.failed, 'string');
+    // A try that failed is kept in photos.json beside those that alerted, with the run it came from.
+    assert.equal(entry.run, run);
+    assert.equal(entry.commit, 'a'.repeat(40));
+    // The settings were never read, so the alert line is unknown, not left out.
+    assert.equal(entry.alertLine, null);
+  }
+});
