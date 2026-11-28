@@ -529,6 +529,13 @@ async function watching({ page, crop, view, sample, whole, nextFrameAfter, captu
   };
 }
 
+// How the Settings list moves through its run. Each move starts `at` seconds
+// in, takes `seconds`, and ends with the list `to` CSS px on from where the
+// run began.
+export function settingsMoves(travel) {
+  return [{ at: 2, seconds: 3, to: travel }];
+}
+
 async function siteSettings({ page, view, top, sample, whole, nextFrameAfter, captureFrame }) {
   const frame = { x: 0, y: top, width: view.width, height: view.size === 'square' ? view.width : view.height };
   // The first rows stand still for two seconds and give the poster. A list
@@ -537,9 +544,10 @@ async function siteSettings({ page, view, top, sample, whole, nextFrameAfter, ca
   const start = await browserTime(page);
   await sleepUntil(page, start, 1);
   const words = await sample();
-  await sleepUntil(page, start, 2);
+  const [move] = settingsMoves(1);
+  await sleepUntil(page, start, move.at);
   const selector = 'nav[aria-label="Settings pages"]';
-  await scrollSubject(page, selector, top, 3, 'end', view.size === 'square' ? view.width : view.height);
+  await scrollSubject(page, selector, top, move.seconds, 'end', view.size === 'square' ? view.width : view.height);
   await settleEdges(page, frame, [], { controls: false });
   await whole('The foot of Settings', { controls: false });
   await frameAfter(page, { nextFrameAfter, captureFrame }, await browserTime(page));
