@@ -5669,11 +5669,13 @@ export async function checkApp(browser, baseUrl, outDir) {
     }, { ...NEW_DEVICE, script: setupScript({ set: { answer: 'OverconstrainedError' }, more: "localStorage.setItem('safeos-camera', JSON.stringify({ state: { deviceId: 'usb' }, version: 0 }));" }) });
   }
 
-  // A click on plain text while the browser asks moves focus off Turn on the
-  // camera to the page's body, with no focus event in the page. Once the
-  // camera opens, the page stays where the person was reading: the focus
-  // does not go up to step 2's heading.
-  await open({ name: 'setup, a click elsewhere while the camera asks', width: 390, look: 'light' }, async (page, context, check) => {
+  // A click on the page's words while the browser asks moves focus off Turn
+  // on the camera. Inside the content, focus goes to the content's region,
+  // which takes focus (tabindex -1); in the footer, outside it, focus goes to
+  // the page's body with no focus event in the page. Either way, once the
+  // camera opens the page stays where the person was reading: the focus does
+  // not go up to step 2's heading.
+  const clickWhileAsking = async (page, check, what, words, onBody) => {
     await visit(page, '/setup/');
     await step1Shown(page);
     await continueOn(page);
@@ -5684,28 +5686,31 @@ export async function checkApp(browser, baseUrl, outDir) {
       const el = document.activeElement;
       return { key: Boolean(el && el.tagName === 'BUTTON' && el.closest('.setup-picture')), words: el && el !== document.body ? (el.textContent || '').trim() : el ? el.tagName : 'nothing' };
     });
-    check(onKey.key, `a click on Turn on the camera leaves the focus on "${plain(onKey.words)}", not on the key`);
-    const reading = setupMain(page).locator('#setup-use-words p').filter({ hasText: 'not a medical device' }).first();
-    if (!(await reading.waitFor({ timeout: 5_000 }).then(() => true, () => false))) { check(false, 'A baby shows no medical sentence on step 2'); return; }
+    check(onKey.key, `${what}: a click on Turn on the camera leaves the focus on "${plain(onKey.words)}", not on the key`);
+    const reading = page.locator(words).first();
+    if (!(await reading.waitFor({ timeout: 5_000 }).then(() => true, () => false))) { check(false, `${what}: no ${words} on step 2`); return; }
     await reading.click();
     const before = await page.evaluate(() => ({ body: document.activeElement === document.body, y: window.scrollY }));
-    check(before.body, 'a click on the medical sentence does not leave the focus on the page');
+    if (onBody) check(before.body, `${what}: the click does not leave the focus on the page's body`);
     await page.evaluate(() => { window.__camera.release(); window.__camera.held = null; });
-    if (!(await page.locator('.setup-picture[data-state="on"]').waitFor({ timeout: 10_000 }).then(() => true, () => false))) { check(false, 'the live picture does not show'); return; }
+    if (!(await page.locator('.setup-picture[data-state="on"]').waitFor({ timeout: 10_000 }).then(() => true, () => false))) { check(false, `${what}: the live picture does not show`); return; }
     await page.waitForTimeout(300);
-    const after = await page.evaluate(() => {
+    const after = await page.evaluate((selector) => {
       const el = document.activeElement;
-      const words = [...document.querySelectorAll('#setup-use-words p')].find((p) => p.textContent.includes('not a medical device'));
-      const box = words ? words.getBoundingClientRect() : null;
+      const box = document.querySelector(selector)?.getBoundingClientRect();
       return {
         tag: el ? el.tagName : 'nothing',
-        words: el && el !== document.body ? (el.textContent || '').trim() : '',
+        words: el && el !== document.body ? (el.textContent || '').trim().slice(0, 60) : '',
         inView: Boolean(box && box.bottom > 0 && box.top < window.innerHeight),
         y: window.scrollY,
       };
-    });
-    check(after.tag !== 'H1', `once the camera opens the focus moved to ${after.tag} "${plain(after.words)}", away from where the person clicked`);
-    check(after.inView, `once the camera opens the medical sentence the person clicked is out of view (scroll ${before.y} -> ${after.y})`);
+    }, words);
+    check(after.tag !== 'H1', `${what}: once the camera opens the focus moved to ${after.tag} "${plain(after.words)}", away from where the person clicked`);
+    check(after.inView, `${what}: once the camera opens the words the person clicked are out of view (scroll ${before.y} -> ${after.y})`);
+  };
+  await open({ name: 'setup, a click elsewhere while the camera asks', width: 390, look: 'light' }, async (page, context, check) => {
+    await clickWhileAsking(page, check, "a click on A baby's medical sentence", '#setup-use-words p:nth-of-type(2)', false);
+    await clickWhileAsking(page, check, "a click on the footer's line", '.site-footer__line', true);
   }, { ...NEW_DEVICE, script: FAKE_CAMERA });
 
   // One press of Back on step 1 leaves setup, also on step 2's old entry:
